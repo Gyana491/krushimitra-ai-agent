@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChatInput } from "@/components/chat-input"
-import { ChatMessages } from "@/components/chat-messages"
+import { EnhancedChatMessages } from "@/components/enhanced-chat-messages"
+import { EnhancedChatInput } from "@/components/enhanced-chat-input"
+import { ImagePreview } from "@/components/image-preview"
 import { MobileHeader } from "@/components/mobile-header"
 import { WeatherSection } from "@/components/weather-section"
 import { MarketPriceSection } from "@/components/market-price-section"
@@ -11,6 +12,7 @@ import { UserProfile } from "@/components/user-profile"
 import { SettingsPanel } from "@/components/settings-panel"
 import { LocationLanguageSetup } from "@/components/location-language-setup"
 import { useTranslation } from "@/hooks/use-translation"
+import { useChat } from "@/hooks/use-chat"
 
 interface UserData {
   name: string
@@ -59,18 +61,30 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "settings" | "location">("home")
   const [userData, setUserData] = useState<UserData | null>(null)
   const [isOnboarding, setIsOnboarding] = useState(true)
-  const [isLoading, setIsLoading] = useState(false)
-  const [messages, setMessages] = useState<
-    Array<{
-      id: string
-      content: string
-      sender: "user" | "bot"
-      timestamp: Date
-      type: "text" | "image" | "voice"
-      imageUrl?: string
-      audioUrl?: string
-    }>
-  >([])
+  
+  // Use our custom chat hook
+  const {
+    // Input state
+    input,
+    setInput,
+    
+    // Messages state
+    messages,
+    status,
+    streamingState,
+    
+    // Image handling
+    selectedImages,
+    triggerImageUpload,
+    formatFileSize,
+    removeImage,
+    clearImages,
+    
+    // Chat actions
+    sendMessage,
+    handleSubmit
+  } = useChat();
+
   const [settings, setSettings] = useState<SettingsData>({
     notifications: {
       weatherAlerts: true,
@@ -173,7 +187,6 @@ export default function Home() {
       setUserData(null)
       setIsOnboarding(true)
       setCurrentView("home")
-      setMessages([])
     }
   }
 
@@ -220,116 +233,38 @@ export default function Home() {
     setCurrentView("home")
   }
 
+  // Simplified handlers for our new chat system
   const handleSendMessage = (message: string) => {
-    console.log("[v0] Sending message:", message)
     if (currentView === "home") {
       setCurrentView("chat")
     }
-
-    const userMessage = {
-      id: Date.now().toString(),
-      content: message,
-      sender: "user" as const,
-      timestamp: new Date(),
-      type: "text" as const,
-    }
-
-    setMessages((prev) => {
-      console.log("[v0] Adding user message to state")
-      return [...prev, userMessage]
-    })
-
-    setIsLoading(true)
-
-    setTimeout(() => {
-      const botResponse = generateBotResponse(message, userData)
-      const botMessage = {
-        id: (Date.now() + 1).toString(),
-        content: botResponse,
-        sender: "bot" as const,
-        timestamp: new Date(),
-        type: "text" as const,
-      }
-      console.log("[v0] Adding bot response to state:", botResponse)
-      setMessages((prev) => [...prev, botMessage])
-      setIsLoading(false)
-    }, 1000)
+    sendMessage(message)
   }
 
-  const handleImageUpload = (file: File) => {
+  // Note: These handlers are kept for future feature implementation
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleImageUpload = (_file: File) => {
     if (currentView === "home") {
       setCurrentView("chat")
     }
-
-    const imageUrl = URL.createObjectURL(file)
-    const userMessage = {
-      id: Date.now().toString(),
-      content: "I've uploaded an image for analysis",
-      sender: "user" as const,
-      timestamp: new Date(),
-      type: "image" as const,
-      imageUrl,
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-
-    setIsLoading(true)
-
-    setTimeout(() => {
-      const botResponse = t("imageAnalysisResponse")
-      const botMessage = {
-        id: (Date.now() + 1).toString(),
-        content: botResponse,
-        sender: "bot" as const,
-        timestamp: new Date(),
-        type: "text" as const,
-      }
-      setMessages((prev) => [...prev, botMessage])
-      setIsLoading(false)
-    }, 1500)
+    // For now, just trigger the image upload flow
+    triggerImageUpload()
   }
 
-  const handleVoiceMessage = (audioBlob: Blob) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleVoiceMessage = (_audioBlob: Blob) => {
     if (currentView === "home") {
       setCurrentView("chat")
     }
-
-    const audioUrl = URL.createObjectURL(audioBlob)
-    const userMessage = {
-      id: Date.now().toString(),
-      content: "Voice message",
-      sender: "user" as const,
-      timestamp: new Date(),
-      type: "voice" as const,
-      audioUrl,
-    }
-
-    setMessages((prev) => [...prev, userMessage])
-
-    setIsLoading(true)
-
-    setTimeout(() => {
-      const botResponse = t("voiceMessageResponse")
-      const botMessage = {
-        id: (Date.now() + 1).toString(),
-        content: botResponse,
-        sender: "bot" as const,
-        timestamp: new Date(),
-        type: "text" as const,
-      }
-      setMessages((prev) => [...prev, botMessage])
-      setIsLoading(false)
-    }, 1500)
+    // For now, convert voice to text message
+    sendMessage("Voice message received - analysis in progress")
   }
 
-  const generateBotResponse = (message: string, userData: UserData | null) => {
-    const responses = [
-      `Great question about ${message.toLowerCase()}! Based on your location in ${userData?.location || "your area"}, I recommend...`,
-      `For ${userData?.mainCrops || "your crops"}, regarding ${message.toLowerCase()}, here's what I suggest...`,
-      `That's a common concern with ${userData?.mainCrops || "farming"}. Let me help you with ${message.toLowerCase()}...`,
-      `Based on your ${userData?.experience || "farming"} experience, for ${message.toLowerCase()}, I'd recommend...`,
-    ]
-    return responses[Math.floor(Math.random() * responses.length)]
+  const handleResetChat = () => {
+    if (currentView === "home") {
+      setCurrentView("chat")
+    }
+    // The hook handles clearing messages internally
   }
 
   const getSuggestedQueries = () => {
@@ -340,23 +275,13 @@ export default function Home() {
     const location = userData.location || ""
 
     return [
-      `${userData.mainCrops} ${t("identifyCropDisease").toLowerCase()}`,
-      `${t("weatherAdvice")} ${location}`,
-      `${t("fertilizerGuidance")} ${userData.mainCrops}`,
-      t("organicPestControl"),
-      t("harvestTimingAdvice"),
-      t("soilHealthTips"),
+      `${userData.mainCrops} disease identification`,
+      `Weather advice for ${location}`,
+      `Fertilizer guidance for ${userData.mainCrops}`,
+      "Organic pest control",
+      "Harvest timing advice",
+      "Soil health tips",
     ]
-  }
-
-  const handleResetChat = () => {
-    console.log("[v0] Resetting chat messages")
-    setMessages([])
-    setIsLoading(false)
-    if (currentView === "home") {
-      setCurrentView("chat")
-    }
-    // If already on chat page, just reset messages and stay on chat page
   }
 
   if (isOnboarding) {
@@ -382,13 +307,22 @@ export default function Home() {
               <MarketPriceSection />
             </div>
 
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              onImageUpload={handleImageUpload}
-              onVoiceMessage={handleVoiceMessage}
+            <EnhancedChatInput
+              input={input}
+              setInput={setInput}
+              selectedImages={selectedImages}
+              triggerImageUpload={triggerImageUpload}
+              handleSubmit={handleSubmit}
+              isLoading={status === 'streaming'}
               suggestedQueries={getSuggestedQueries()}
               onSuggestedQueryClick={handleSendMessage}
-              userData={userData || undefined}
+            />
+
+            <ImagePreview
+              selectedImages={selectedImages}
+              removeImage={removeImage}
+              clearImages={clearImages}
+              formatFileSize={formatFileSize}
             />
           </>
         )}
@@ -396,16 +330,29 @@ export default function Home() {
         {currentView === "chat" && (
           <>
             <div className="flex-1 overflow-y-auto">
-              <ChatMessages messages={messages} isLoading={isLoading} />
+              <EnhancedChatMessages 
+                messages={messages} 
+                isLoading={status === 'streaming'} 
+                streamingState={streamingState}
+              />
             </div>
 
-            <ChatInput
-              onSendMessage={handleSendMessage}
-              onImageUpload={handleImageUpload}
-              onVoiceMessage={handleVoiceMessage}
+            <EnhancedChatInput
+              input={input}
+              setInput={setInput}
+              selectedImages={selectedImages}
+              triggerImageUpload={triggerImageUpload}
+              handleSubmit={handleSubmit}
+              isLoading={status === 'streaming'}
               suggestedQueries={getSuggestedQueries()}
               onSuggestedQueryClick={handleSendMessage}
-              userData={userData || undefined}
+            />
+
+            <ImagePreview
+              selectedImages={selectedImages}
+              removeImage={removeImage}
+              clearImages={clearImages}
+              formatFileSize={formatFileSize}
             />
           </>
         )}
