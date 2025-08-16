@@ -18,7 +18,6 @@
     "@mastra/client-js": "^0.10.21",
     "@mastra/core": "^0.0.0-ai-v5-20250813235735",
     "@mastra/memory": "^0.0.0-ai-v5-20250813235735",
-    "@mastra/mongodb": "^0.13.1",
     "@mastra/rag": "^1.0.8",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-collapsible": "^1.1.12",
