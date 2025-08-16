@@ -75,7 +75,19 @@ const queryKCCAPI = async (params: {
   crop?: string;
 }): Promise<{
   totalFound: number;
-  relevantResults: any[];
+  relevantResults: Array<{
+    id: string;
+    similarity: number;
+    queryType: string;
+    queryText: string;
+    answer: string;
+    createdOn: string;
+    state?: string;
+    district?: string;
+    category?: string;
+    crop?: string;
+    season?: string;
+  }>;
   searchSummary: string;
   recommendations: string[];
   hasRelevantData: boolean;
@@ -170,7 +182,19 @@ const queryKCCAPI = async (params: {
 };
 
 // Helper function to generate recommendations based on results
-function generateRecommendations(results: any[], originalQuery: string): string[] {
+function generateRecommendations(results: Array<{
+  id: string;
+  similarity: number;
+  queryType: string;
+  queryText: string;
+  answer: string;
+  createdOn: string;
+  state?: string;
+  district?: string;
+  category?: string;
+  crop?: string;
+  season?: string;
+}>, originalQuery: string): string[] {
   const recommendations: string[] = [];
   
   if (results.length > 0) {

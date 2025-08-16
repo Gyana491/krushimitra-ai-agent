@@ -37,32 +37,43 @@ export const CodeBlock = ({
   <CodeBlockContext.Provider value={{ code }}>
     <div
       className={cn(
-        'relative w-full overflow-hidden rounded-md border bg-background text-foreground',
+        'relative w-full max-w-full overflow-hidden rounded-md border bg-background text-foreground',
         className,
       )}
       {...props}
     >
-      <div className="relative">
+      <div className="relative overflow-hidden">
         <SyntaxHighlighter
           language={language}
           style={oneLight}
           customStyle={{
             margin: 0,
-            padding: '1rem',
-            fontSize: '0.875rem',
+            padding: '0.75rem',
+            fontSize: '0.75rem',
             background: 'hsl(var(--background))',
             color: 'hsl(var(--foreground))',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
             color: 'hsl(var(--muted-foreground))',
-            paddingRight: '1rem',
-            minWidth: '2.5rem',
+            paddingRight: '0.5rem',
+            minWidth: '2rem',
+            fontSize: '0.75rem',
           }}
           codeTagProps={{
-            className: 'font-mono text-sm',
+            className: 'font-mono text-xs break-words',
+            style: {
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+            },
           }}
-          className="dark:hidden overflow-hidden"
+          className="dark:hidden overflow-hidden max-w-full"
+          wrapLines={true}
+          wrapLongLines={true}
         >
           {code}
         </SyntaxHighlighter>
@@ -71,21 +82,32 @@ export const CodeBlock = ({
           style={oneDark}
           customStyle={{
             margin: 0,
-            padding: '1rem',
-            fontSize: '0.875rem',
+            padding: '0.75rem',
+            fontSize: '0.75rem',
             background: 'hsl(var(--background))',
             color: 'hsl(var(--foreground))',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            overflowWrap: 'break-word',
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
             color: 'hsl(var(--muted-foreground))',
-            paddingRight: '1rem',
-            minWidth: '2.5rem',
+            paddingRight: '0.5rem',
+            minWidth: '2rem',
+            fontSize: '0.75rem',
           }}
           codeTagProps={{
-            className: 'font-mono text-sm',
+            className: 'font-mono text-xs break-words',
+            style: {
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+            },
           }}
-          className="hidden dark:block overflow-hidden"
+          className="hidden dark:block overflow-hidden max-w-full"
+          wrapLines={true}
+          wrapLongLines={true}
         >
           {code}
         </SyntaxHighlighter>

@@ -317,7 +317,7 @@ export default function Home() {
           <>
             <div className="flex-1 overflow-y-auto">
               <WeatherSection location={userData?.location || "Unknown Location"} />
-              <MarketPriceSection />
+              {/* <MarketPriceSection /> */}
             </div>
 
             <EnhancedChatInput

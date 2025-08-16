@@ -23,7 +23,10 @@ export type ToolProps = ComponentProps<typeof Collapsible>;
 
 export const Tool = ({ className, ...props }: ToolProps) => (
   <Collapsible
-    className={cn('not-prose mb-4 w-full rounded-md border', className)}
+    className={cn(
+      'not-prose mb-4 w-full max-w-full rounded-md border overflow-hidden',
+      className
+    )}
     {...props}
   />
 );
@@ -65,17 +68,17 @@ export const ToolHeader = ({
 }: ToolHeaderProps) => (
   <CollapsibleTrigger
     className={cn(
-      'flex w-full items-center justify-between gap-4 p-3',
+      'flex w-full items-center justify-between gap-2 sm:gap-4 p-3 hover:bg-muted/50 transition-colors',
       className,
     )}
     {...props}
   >
-    <div className="flex items-center gap-2">
-      <WrenchIcon className="size-4 text-muted-foreground" />
-      <span className="font-medium text-sm">{type}</span>
+    <div className="flex items-center gap-2 min-w-0 flex-1">
+      <WrenchIcon className="size-4 text-muted-foreground flex-shrink-0" />
+      <span className="font-medium text-sm truncate">{type}</span>
       {getStatusBadge(state)}
     </div>
-    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+    <ChevronDownIcon className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180 flex-shrink-0" />
   </CollapsibleTrigger>
 );
 
@@ -84,7 +87,7 @@ export type ToolContentProps = ComponentProps<typeof CollapsibleContent>;
 export const ToolContent = ({ className, ...props }: ToolContentProps) => (
   <CollapsibleContent
     className={cn(
-      'text-popover-foreground outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2',
+      'text-popover-foreground outline-none overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2',
       className,
     )}
     {...props}
@@ -96,11 +99,11 @@ export type ToolInputProps = ComponentProps<'div'> & {
 };
 
 export const ToolInput = ({ className, input, ...props }: ToolInputProps) => (
-  <div className={cn('space-y-2 overflow-hidden p-4', className)} {...props}>
+  <div className={cn('space-y-2 overflow-hidden p-3 sm:p-4', className)} {...props}>
     <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
       Parameters
     </h4>
-    <div className="rounded-md bg-muted/50">
+    <div className="rounded-md bg-muted/50 overflow-hidden">
       <CodeBlock code={JSON.stringify(input, null, 2)} language="json" />
     </div>
   </div>
@@ -122,20 +125,29 @@ export const ToolOutput = ({
   }
 
   return (
-    <div className={cn('space-y-2 p-4', className)} {...props}>
+    <div className={cn('space-y-2 p-3 sm:p-4', className)} {...props}>
       <h4 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">
         {errorText ? 'Error' : 'Result'}
       </h4>
       <div
         className={cn(
-          'overflow-x-auto rounded-md text-xs [&_table]:w-full',
+          'overflow-hidden rounded-md text-xs break-words',
+          '[&_table]:w-full [&_table]:table-auto [&_table]:overflow-x-auto',
+          '[&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_pre]:break-words',
+          '[&_code]:break-words [&_code]:whitespace-pre-wrap',
           errorText
-            ? 'bg-destructive/10 text-destructive'
+            ? 'bg-destructive/10 text-destructive p-3'
             : 'bg-muted/50 text-foreground',
         )}
       >
-        {errorText && <div>{errorText}</div>}
-        {output && <div>{output}</div>}
+        {errorText && (
+          <div className="whitespace-pre-wrap break-words">{errorText}</div>
+        )}
+        {output && (
+          <div className="overflow-hidden break-words [&>*]:max-w-full [&>*]:overflow-hidden">
+            {output}
+          </div>
+        )}
       </div>
     </div>
   );

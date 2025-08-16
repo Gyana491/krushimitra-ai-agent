@@ -3,9 +3,9 @@ import { Agent } from '@mastra/core/agent';
 import { weatherTool } from '../tools/weather-tool';
 import { perplexityTool } from '../tools/research-tool';
 import { mandiPriceTool } from '../tools/mandi-price-tool';
-import { kccDatabaseTool } from '../tools/kcc-rag-vectordb-tool';
+import { kccDatabaseTool } from '../tools/kcc-tool';
 
-export const weatherAgent = new Agent({
+export const kccAgent = new Agent({
   name: 'Smart Farming Assistant',
   instructions: `
       You are an expert smart farming assistant that provides highly accurate, context-aware agricultural advice and recommendations.
@@ -117,6 +117,5 @@ export const weatherAgent = new Agent({
       - Use only the primary city name for accurate weather data retrieval
 `,
   model: google('gemini-2.5-flash'),
-  tools: { kccDatabaseTool, weatherTool, perplexityTool, mandiPriceTool }
+  tools: { kccDatabaseTool, weatherTool, perplexityTool, mandiPriceTool },
 });
-    

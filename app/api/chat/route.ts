@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
   console.log(enrichedMessages);
 
-  const myAgent = mastra.getAgent("weatherAgent");
+  const myAgent = mastra.getAgent("kccAgent");
   const stream = await myAgent.stream(enrichedMessages);
 
   return createV4CompatibleResponse(stream.toUIMessageStreamResponse().body!);
