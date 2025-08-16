@@ -1,0 +1,130 @@
+import { type NextRequest, NextResponse } from "next/server"
+
+interface GeocodingResponse {
+  results: {
+    latitude: number
+    longitude: number
+    name: string
+  }[]
+}
+
+interface WeatherResponse {
+  current: {
+    time: string
+    temperature_2m: number
+    apparent_temperature: number
+    relative_humidity_2m: number
+    wind_speed_10m: number
+    wind_gusts_10m: number
+    weather_code: number
+  }
+  daily: {
+    time: string[]
+    temperature_2m_max: number[]
+    temperature_2m_min: number[]
+    apparent_temperature_max: number[]
+    apparent_temperature_min: number[]
+    precipitation_sum: number[]
+    precipitation_probability_max: number[]
+    wind_speed_10m_max: number[]
+    wind_gusts_10m_max: number[]
+    weather_code: number[]
+  }
+}
+
+function getWeatherCondition(code: number): string {
+  const conditions: Record<number, string> = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    48: "Depositing rime fog",
+    51: "Light drizzle",
+    53: "Moderate drizzle",
+    55: "Dense drizzle",
+    56: "Light freezing drizzle",
+    57: "Dense freezing drizzle",
+    61: "Slight rain",
+    63: "Moderate rain",
+    65: "Heavy rain",
+    66: "Light freezing rain",
+    67: "Heavy freezing rain",
+    71: "Slight snow fall",
+    73: "Moderate snow fall",
+    75: "Heavy snow fall",
+    77: "Snow grains",
+    80: "Slight rain showers",
+    81: "Moderate rain showers",
+    82: "Violent rain showers",
+    85: "Slight snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with slight hail",
+    99: "Thunderstorm with heavy hail",
+  }
+  return conditions[code] || "Unknown"
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const location = searchParams.get("location")
+
+    if (!location) {
+      return NextResponse.json({ error: "Location parameter is required" }, { status: 400 })
+    }
+
+    // Clean the location input to extract only the city name
+    const cleanLocation = location.split(",")[0].trim()
+
+    // Get coordinates from location name
+    const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLocation)}&count=1`
+    const geocodingResponse = await fetch(geocodingUrl)
+    const geocodingData = (await geocodingResponse.json()) as GeocodingResponse
+
+    if (!geocodingData.results?.[0]) {
+      return NextResponse.json({ error: `Location '${cleanLocation}' not found` }, { status: 404 })
+    }
+
+    const { latitude, longitude, name } = geocodingData.results[0]
+
+    // Get weather data
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=7`
+
+    const weatherResponse = await fetch(weatherUrl)
+    const weatherData = (await weatherResponse.json()) as WeatherResponse
+
+    // Process the data
+    const forecast = weatherData.daily.time.map((date, index) => ({
+      date,
+      maxTemp: weatherData.daily.temperature_2m_max[index],
+      minTemp: weatherData.daily.temperature_2m_min[index],
+      maxFeelsLike: weatherData.daily.apparent_temperature_max[index],
+      minFeelsLike: weatherData.daily.apparent_temperature_min[index],
+      precipitation: weatherData.daily.precipitation_sum[index],
+      precipitationChance: weatherData.daily.precipitation_probability_max[index],
+      maxWindSpeed: weatherData.daily.wind_speed_10m_max[index],
+      maxWindGust: weatherData.daily.wind_gusts_10m_max[index],
+      conditions: getWeatherCondition(weatherData.daily.weather_code[index]),
+    }))
+
+    const result = {
+      location: name,
+      currentWeather: {
+        temperature: weatherData.current.temperature_2m,
+        feelsLike: weatherData.current.apparent_temperature,
+        humidity: weatherData.current.relative_humidity_2m,
+        windSpeed: weatherData.current.wind_speed_10m,
+        windGust: weatherData.current.wind_gusts_10m,
+        conditions: getWeatherCondition(weatherData.current.weather_code),
+      },
+      forecast,
+    }
+
+    return NextResponse.json(result)
+  } catch (error) {
+    console.error("Weather API error:", error)
+    return NextResponse.json({ error: "Failed to fetch weather data" }, { status: 500 })
+  }
+}
