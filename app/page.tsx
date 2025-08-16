@@ -85,6 +85,22 @@ export default function Home() {
     handleSubmit
   } = useChat();
 
+  // Wrap sendMessage to handle view changes
+  const wrappedSendMessage = (message: string) => {
+    if (currentView === "home") {
+      setCurrentView("chat")
+    }
+    sendMessage(message)
+  }
+
+  // Wrap handleSubmit to handle view changes
+  const wrappedHandleSubmit = (e: React.FormEvent) => {
+    if (currentView === "home") {
+      setCurrentView("chat")
+    }
+    handleSubmit(e)
+  }
+
   const [settings, setSettings] = useState<SettingsData>({
     notifications: {
       weatherAlerts: true,
@@ -235,10 +251,7 @@ export default function Home() {
 
   // Simplified handlers for our new chat system
   const handleSendMessage = (message: string) => {
-    if (currentView === "home") {
-      setCurrentView("chat")
-    }
-    sendMessage(message)
+    wrappedSendMessage(message)
   }
 
   // Note: These handlers are kept for future feature implementation
@@ -312,7 +325,7 @@ export default function Home() {
               setInput={setInput}
               selectedImages={selectedImages}
               triggerImageUpload={triggerImageUpload}
-              handleSubmit={handleSubmit}
+              handleSubmit={wrappedHandleSubmit}
               isLoading={status === 'streaming'}
               suggestedQueries={getSuggestedQueries()}
               onSuggestedQueryClick={handleSendMessage}
@@ -342,7 +355,7 @@ export default function Home() {
               setInput={setInput}
               selectedImages={selectedImages}
               triggerImageUpload={triggerImageUpload}
-              handleSubmit={handleSubmit}
+              handleSubmit={wrappedHandleSubmit}
               isLoading={status === 'streaming'}
               suggestedQueries={getSuggestedQueries()}
               onSuggestedQueryClick={handleSendMessage}
