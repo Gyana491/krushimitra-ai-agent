@@ -9,7 +9,7 @@ import { X } from 'lucide-react'
 interface CropSelectorProps {
   value: string[]
   onChange: (crops: string[]) => void
-  translate?: (key: any, params?: Record<string,string>) => string
+  translate?: (key: string, params?: Record<string,string>) => string
   className?: string
 }
 
@@ -18,9 +18,9 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
 
   const t = (crop: string) => {
     if (!translate) return crop
-  // Normalize crop name to translation key format: lowercase, spaces->_, keep parentheses
-  const key = `crop_${crop.toLowerCase().replace(/\s+/g,'_')}`
-    return (translate(key as any) || crop)
+    // Normalize crop name to translation key format: lowercase, spaces->_, keep parentheses
+    const key = `crop_${crop.toLowerCase().replace(/\s+/g,'_')}`
+    return (translate(key) || crop)
   }
 
   const toggle = (crop: string) => {
@@ -45,7 +45,7 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
         <Input
           value={customCrop}
           onChange={(e) => setCustomCrop(e.target.value)}
-          placeholder={translate ? translate('cropAddCustomPlaceholder' as any) : 'Add crop'}
+          placeholder={translate ? translate('cropAddCustomPlaceholder') : 'Add crop'}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -54,14 +54,14 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
           }}
         />
         <Button type="button" onClick={addCustom} variant="default" className="shrink-0 bg-emerald-600 hover:bg-emerald-700">
-          {translate ? translate('cropAddCustomButton' as any) : 'Add'}
+          {translate ? translate('cropAddCustomButton') : 'Add'}
         </Button>
       </div>
 
       {/* Suggested crops */}
       <div className="mb-3">
         <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-          {translate ? translate('cropSuggestedLabel' as any) : 'Suggested'}
+          {translate ? translate('cropSuggestedLabel') : 'Suggested'}
         </p>
         <div className="flex flex-wrap gap-2">
           {POPULAR_CROPS.filter(c => !value.includes(c)).map(crop => {
@@ -84,10 +84,10 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
       {/* Selected crops */}
       <div>
         <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-          {translate ? translate('cropSelectedLabel' as any) : 'Selected'} {value.length > 0 && `(${value.length})`}
+          {translate ? translate('cropSelectedLabel') : 'Selected'} {value.length > 0 && `(${value.length})`}
         </p>
         {value.length === 0 ? (
-          <p className="text-xs text-muted-foreground">{translate ? translate('cropNoneSelected' as any) : 'No crops selected yet.'}</p>
+          <p className="text-xs text-muted-foreground">{translate ? translate('cropNoneSelected') : 'No crops selected yet.'}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {value.map(crop => (

@@ -36,7 +36,8 @@ interface UserData {
 export default function Home() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
-  const { t } = useTranslation(userData?.language)
+  // Translation hook retained for future localization usage (t currently unused)
+  useTranslation(userData?.language)
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -165,11 +166,14 @@ export default function Home() {
       totalChats: 0,
       diseasesIdentified: 0,
       achievements: ["Welcome to CropWise!"],
-      mainCrops: Array.isArray(data.mainCrops)
-        ? data.mainCrops as string[]
-        : (typeof (data as any).mainCrops === 'string'
-            ? ((data as any).mainCrops as string).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean)
-            : []),
+    mainCrops: Array.isArray(data.mainCrops)
+    ? data.mainCrops
+    : (typeof (data as { mainCrops?: unknown }).mainCrops === 'string'
+      ? String((data as { mainCrops?: unknown }).mainCrops)
+        .split(/[;,]/)
+        .map((c) => c.trim())
+        .filter(Boolean)
+      : []),
     }
     setUserData(enhancedData)
     localStorage.setItem("cropwise-user-data", JSON.stringify(enhancedData))

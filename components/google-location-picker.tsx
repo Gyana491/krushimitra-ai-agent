@@ -5,7 +5,30 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin } from 'lucide-react'
 
-declare const google: any
+// Minimal structural typings for Google Maps Places API objects we use
+type GooglePlace = {
+  formatted_address?: string;
+  geometry?: { location?: { lat(): number; lng(): number } };
+  address_components?: Array<{ long_name: string; types: string[] }>;
+};
+
+interface GoogleAutocomplete {
+  addListener(eventName: 'place_changed', callback: () => void): void;
+  getPlace(): GooglePlace;
+}
+
+declare const google: {
+  maps: {
+    places: {
+      Autocomplete: new (
+        input: HTMLInputElement,
+        opts: { types: string[]; fields: string[] }
+      ) => GoogleAutocomplete;
+    };
+  };
+};
+
+// Note: We avoid augmenting Window typing for google to prevent conflicts; runtime checks use optional chaining.
 
 export interface SelectedLocationData { address: string; latitude: number; longitude: number; cityName?: string; stateName?: string; country?: string }
 interface GoogleLocationPickerProps { value?: string; onChange: (loc: SelectedLocationData) => void; placeholder?: string; className?: string; autoSaveToLocalStorage?: boolean }
@@ -18,7 +41,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if ((window as any).google?.maps?.places) { setScriptLoaded(true); return }
+  if (window.google?.maps?.places) { setScriptLoaded(true); return }
     const existing = document.getElementById('google-maps-script') as HTMLScriptElement | null
     if (existing) { existing.addEventListener('load', () => setScriptLoaded(true)); return }
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''

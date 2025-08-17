@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
+// Textarea import removed (unused)
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -48,7 +48,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
     if (typeof mc === 'string') return mc.split(/[;,]/).map(c => c.trim()).filter(Boolean);
     return [];
   };
-  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops as any);
+  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops);
 
   const [farmEditData, setFarmEditData] = useState({
     farmType: userData.farmType,
@@ -85,7 +85,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
       farmType: userData.farmType,
       farmSize: userData.farmSize,
       experience: userData.experience,
-  mainCrops: normalizeCrops(userData.mainCrops as any),
+  mainCrops: normalizeCrops(userData.mainCrops),
       
     })
     setIsFarmEditing(false)

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { CropSelector } from "@/components/crop-selector"
-import { Leaf, MapPin, Globe, User, Sprout, Languages } from "lucide-react"
+import { Leaf, MapPin, User, Sprout, Languages } from "lucide-react"
 import { GoogleLocationPicker, SelectedLocationData } from "@/components/google-location-picker"
 import { useTranslation, type Language } from "@/hooks/use-translation"
 
@@ -54,12 +54,12 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     Odia: "or",
   }
 
-  const updateData = (field: keyof OnboardingData, value: any) => {
+  const updateData = (field: keyof OnboardingData, value: string | string[]) => {
     setData((prev) => ({ ...prev, [field]: value }))
-    if (field === "language") {
-      const languageCode = languageMap[value] || "en"
-      changeLanguage(languageCode as Language)
-      console.log("[v0] Language updated to:", value, "->", languageCode)
+    if (field === "language" && typeof value === 'string') {
+      const code = languageMap[value] || "en"
+      changeLanguage(code as Language)
+      console.log("[v0] Language updated to:", value, "->", code)
     }
   }
 
@@ -225,11 +225,13 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           </div>
           <div className="space-y-3">
             <Label>{t("onboarding.experience.cropsLabel")}</Label>
-            <CropSelector
-              value={data.mainCrops}
-              onChange={(crops) => updateData('mainCrops', crops)}
-              translate={(key: any) => t(key as any)}
-            />
+              <CropSelector
+                value={data.mainCrops}
+                onChange={(crops) => updateData('mainCrops', crops)}
+                // Casting to any since CropSelector accepts dynamic translation keys not fully represented in t's union type
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                translate={(key: string) => t(key as any)}
+              />
             {data.mainCrops.length === 0 && (
               <p className="text-xs text-muted-foreground">{t('onboarding.experience.cropsPlaceholder')}</p>
             )}

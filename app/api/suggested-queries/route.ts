@@ -6,6 +6,12 @@ interface ChatMessage {
   id?: string;
 }
 
+// Minimal shape for Sarvam API response choices
+interface SarvamChoice {
+  message?: { content?: string };
+  [key: string]: unknown; // allow extra fields without using 'any'
+}
+
 // Always return between MIN and MAX suggestions
 const MIN_SUGGESTIONS = 3;
 const MAX_SUGGESTIONS = 4;
@@ -314,11 +320,14 @@ Return ONLY the JSON array with 3-4 questions.`,
 
     let generatedContent: string | undefined;
     try {
-      const data = await response.json();
+      const data: { choices?: SarvamChoice[] } = await response.json();
       generatedContent = data.choices?.[0]?.message?.content;
       if (!generatedContent && Array.isArray(data.choices)) {
         // Try alternative shapes
-        generatedContent = data.choices.map((c: any) => c?.message?.content).filter(Boolean).join('\n');
+        generatedContent = data.choices
+          .map((c: SarvamChoice) => c?.message?.content)
+          .filter((v): v is string => Boolean(v))
+          .join('\n');
       }
     } catch (e) {
       console.warn('Failed parsing primary response JSON, using fallback heuristic', e);
