@@ -15,7 +15,7 @@ export const useChatThreads = () => {
   const [showThreadsList, setShowThreadsList] = useState(false);
   const [isPendingNewThread, setIsPendingNewThread] = useState(false);
 
-  // Load chat threads from localStorage on mount
+  // Load chat threads from localStorage on mount - simplified logic
   useEffect(() => {
     const savedThreads = localStorage.getItem('farm-chat-threads');
     const savedCurrentThreadId = localStorage.getItem('farm-chat-current-thread');
@@ -28,66 +28,96 @@ export const useChatThreads = () => {
         if (savedCurrentThreadId && parsedThreads.find((t: ChatThread) => t.id === savedCurrentThreadId)) {
           setCurrentThreadId(savedCurrentThreadId);
         } else if (parsedThreads.length > 0) {
-          const mostRecent = parsedThreads[0];
-          setCurrentThreadId(mostRecent.id);
-        } else {
-          // No threads exist, set pending new thread state
-          setIsPendingNewThread(true);
+          // Don't automatically set a thread if there's a saved ID that doesn't match
+          // This prevents unwanted thread switching
         }
       } catch (error) {
         console.error('Error loading chat threads:', error);
       }
-    } else {
-      // No saved threads, set pending new thread state
-      setIsPendingNewThread(true);
     }
   }, []);
 
-  // Save threads to localStorage whenever they change
+  // Save threads to localStorage whenever they change - simple save logic
   useEffect(() => {
     if (chatThreads.length > 0) {
-      localStorage.setItem('farm-chat-threads', JSON.stringify(chatThreads));
+      // Filter out any threads that have no messages before saving
+      const threadsWithMessages = chatThreads.filter(thread => thread.messages && thread.messages.length > 0);
+      
+      if (threadsWithMessages.length > 0) {
+        localStorage.setItem('farm-chat-threads', JSON.stringify(threadsWithMessages));
+      } else {
+        localStorage.removeItem('farm-chat-threads');
+      }
+    } else {
+      localStorage.removeItem('farm-chat-threads');
     }
+    
     if (currentThreadId) {
       localStorage.setItem('farm-chat-current-thread', currentThreadId);
+    } else {
+      localStorage.removeItem('farm-chat-current-thread');
     }
   }, [chatThreads, currentThreadId]);
 
+  // Create a new thread ID in memory but do NOT add it to the threads list until it has messages
   const createNewThread = useCallback(() => {
-    // Instead of creating a thread immediately, set up pending state
-    setCurrentThreadId('');
-    setIsPendingNewThread(true);
-    return ''; // Return empty string to indicate pending state
-  }, []);
-
-  const createActualThread = useCallback((firstMessage?: ChatMessage) => {
     const newThreadId = `thread-${Date.now()}`;
-    const title = firstMessage?.content 
-      ? (firstMessage.content.length > 50 
-          ? firstMessage.content.slice(0, 50) + '...' 
-          : firstMessage.content)
-      : 'New Chat';
     
+    // Create a new thread with a default title - but don't add to state yet
     const newThread: ChatThread = {
       id: newThreadId,
-      title,
-      messages: firstMessage ? [firstMessage] : [],
+      title: 'New Chat',
+      messages: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
-    setChatThreads(prev => [newThread, ...prev]);
+    // Set current thread ID without adding to threads list
     setCurrentThreadId(newThreadId);
     setIsPendingNewThread(false);
+    
+    // Save only the current thread ID to localStorage, not the entire thread
+    localStorage.setItem('farm-chat-current-thread', newThreadId);
+    
+    // DO NOT add to threads list yet - only add when it has messages
+    // We'll add it to the state once it has messages in updateCurrentThread
+    
     return newThreadId;
   }, []);
 
+  // This function is kept for backward compatibility but just updates the thread title
+  const createActualThread = useCallback((firstMessage?: ChatMessage) => {
+    if (!currentThreadId) {
+      return createNewThread();
+    }
+    
+    // Just update the title of the existing thread
+    if (firstMessage) {
+      const title = firstMessage.content.length > 50 
+        ? firstMessage.content.slice(0, 50) + '...' 
+        : firstMessage.content;
+      
+      setChatThreads(prev => prev.map(thread => 
+        thread.id === currentThreadId 
+          ? { ...thread, title, updatedAt: new Date().toISOString() }
+          : thread
+      ));
+    }
+    
+    return currentThreadId;
+  }, [currentThreadId, createNewThread]);
+
+  // Simple thread switching - just set the current thread and return it
   const switchToThread = useCallback((threadId: string) => {
     const thread = chatThreads.find(t => t.id === threadId);
     if (thread) {
       setCurrentThreadId(threadId);
       setShowThreadsList(false);
-      setIsPendingNewThread(false); // Ensure we're not in pending new thread state
+      setIsPendingNewThread(false);
+      
+      // Save to localStorage immediately
+      localStorage.setItem('farm-chat-current-thread', threadId);
+      
       return thread;
     }
     return null;
@@ -115,14 +145,51 @@ export const useChatThreads = () => {
     return null;
   }, [chatThreads, currentThreadId]);
 
+  // Simplified update thread function - just updates the messages and title
   const updateCurrentThread = useCallback((messages: ChatMessage[]) => {
-    if (messages.length > 0) {
-      if (isPendingNewThread) {
-        // Create the actual thread now that we have a message
-        createActualThread(messages[0]);
-      } else if (currentThreadId) {
+    // Don't update or create threads with empty messages
+    if (messages.length === 0) return; // Nothing to update
+    
+    // If no current thread, create a new one only if we have messages
+    if (!currentThreadId) {
+      // Only create a new thread if we have actual messages
+      const newThreadId = createNewThread();
+      
+      // Then update it with messages and add it to the threads list
+      setChatThreads(prev => {
+        // Create new thread with messages
+        const newThread: ChatThread = {
+          id: newThreadId,
+          title: messages[0]?.content 
+            ? (messages[0].content.length > 50 
+                ? messages[0].content.slice(0, 50) + '...' 
+                : messages[0].content)
+            : 'New Chat',
+          messages,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Add new thread to beginning of list
+        const updatedThreads = [newThread, ...prev];
+        
+        // Save immediately
+        localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+        return updatedThreads;
+      });
+      return;
+    }
+    
+    // Update existing thread with new messages
+    setChatThreads(prev => {
+      // Check if thread exists in current state
+      const threadExists = prev.some(thread => thread.id === currentThreadId);
+      
+      let updatedThreads: ChatThread[];
+      
+      if (threadExists) {
         // Update existing thread
-        setChatThreads(prev => prev.map(thread => 
+        updatedThreads = prev.map(thread => 
           thread.id === currentThreadId 
             ? { 
                 ...thread, 
@@ -135,10 +202,30 @@ export const useChatThreads = () => {
                   : 'New Chat'
               }
             : thread
-        ));
+        );
+      } else {
+        // Thread ID exists but not in state - create a new thread with messages and add it
+        const newThread: ChatThread = {
+          id: currentThreadId,
+          title: messages[0]?.content 
+            ? (messages[0].content.length > 50 
+                ? messages[0].content.slice(0, 50) + '...' 
+                : messages[0].content)
+            : 'New Chat',
+          messages,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        // Add new thread to beginning of list
+        updatedThreads = [newThread, ...prev];
       }
-    }
-  }, [currentThreadId, isPendingNewThread, createActualThread]);
+      
+      // Save immediately
+      localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+      return updatedThreads;
+    });
+  }, [currentThreadId, createNewThread]);
 
   const clearCurrentThread = useCallback(() => {
     if (currentThreadId) {

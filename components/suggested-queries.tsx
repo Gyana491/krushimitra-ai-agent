@@ -2,7 +2,8 @@ import React from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 // import { Skeleton } from './ui/skeleton'; // Not currently used
-import { RefreshCw, MessageSquare, Sparkles } from 'lucide-react';
+import { RefreshCw, Sparkles, CornerDownRight } from 'lucide-react';
+import { useTranslation } from '@/hooks/use-translation';
 
 interface SuggestedQueriesProps {
   queries: string[];
@@ -23,6 +24,7 @@ export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
   className = '',
   isAgentResponding = false,
 }) => {
+  const { t } = useTranslation();
   // Don't show anything while agent is responding
   if (isAgentResponding) {
     return null;
@@ -33,11 +35,11 @@ export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
   }
 
   return (
-    <Card className={className}>
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-blue-600" />
-          Suggested Questions
+    <Card className={`${className} bg-card border-emerald-200/70`}>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2 text-emerald-700">
+          <Sparkles className="w-4 h-4" />
+          {t('suggestedFollowUps')}
           {onRefresh && (
             <Button
               variant="ghost"
@@ -51,17 +53,17 @@ export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="space-y-1">
         {queries.map((query, index) => (
-          <Button
+          <button
             key={index}
-            variant="outline"
-            className="w-full text-left justify-start h-auto py-3 px-4 text-sm font-normal border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors"
             onClick={() => onQuerySelect(query)}
+            className="group w-full text-left text-[13px] px-2 py-1 rounded-md border border-emerald-300 hover:border-emerald-400 bg-emerald-50/40 hover:bg-emerald-50 flex items-start gap-2 transition-colors cursor-pointer"
           >
-            <MessageSquare className="w-4 h-4 mr-2 text-gray-500 shrink-0" />
-            <span className="text-gray-700">{query}</span>
-          </Button>
+            <CornerDownRight className="h-4 w-4 text-emerald-500 mt-0.5" />
+            <span className="flex-1 leading-snug text-emerald-800 group-hover:text-emerald-900">{query}</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white group-hover:bg-emerald-700">{t('askButton')}</span>
+          </button>
         ))}
       </CardContent>
     </Card>

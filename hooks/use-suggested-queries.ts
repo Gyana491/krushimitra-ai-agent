@@ -69,14 +69,40 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     const tooSoon = now - lastApiCall.current < MIN_INTERVAL_MS;
     const notEnough = messages.filter(m => m.role === 'assistant').length === 0;
 
+    // Log for debugging
+    console.log('Suggested Query Generation Check:', {
+      threadId,
+      forceGeneration: force,
+      messagesCount: messages.length,
+      contextUnchanged,
+      tooSoon,
+      notEnough,
+      isGenerating: isGenerating.current
+    });
+
     if (!force) {
-      if (contextUnchanged) return; // nothing new
-      if (tooSoon) return;
-      if (isGenerating.current) return;
-      if (notEnough) return;
+      if (contextUnchanged) {
+        console.log('Context unchanged, skipping query generation');
+        return;
+      }
+      if (tooSoon) {
+        console.log('Too soon since last API call, skipping query generation');
+        return;
+      }
+      if (isGenerating.current) {
+        console.log('Already generating, skipping query generation');
+        return;
+      }
+      if (notEnough) {
+        console.log('Not enough messages for context, skipping query generation');
+        return;
+      }
     } else if (isGenerating.current) {
+      console.log('Force requested but already generating, skipping query generation');
       return; // even force won't run concurrently
     }
+
+    console.log('Starting query generation for thread:', threadId);
 
     isGenerating.current = true;
     setState(prev => ({ ...prev, isLoading: true, error: null }));
@@ -177,7 +203,23 @@ export const useSuggestedQueries = (currentThreadId: string) => {
   }, [saveToLocalStorage, MIN_INTERVAL_MS]);
 
   const generateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => coreGenerate(messages, threadId, false), [coreGenerate]);
-  const forceGenerateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => coreGenerate(messages, threadId, true), [coreGenerate]);
+  const forceGenerateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => {
+    console.log('Force generating queries for thread:', threadId);
+    
+    // Reset the generation state to allow force-regeneration even if something was in progress
+    isGenerating.current = false;
+    lastApiCall.current = 0;
+    
+    // Add some delay to ensure we don't clash with other operations
+    setTimeout(() => {
+      // Double check there are messages to work with
+      if (messages && messages.length > 0) {
+        coreGenerate(messages, threadId, true);
+      } else {
+        console.warn('Cannot generate suggestions: No messages available');
+      }
+    }, 300);
+  }, [coreGenerate]);
 
   // Clear suggested queries for current thread
   const clearSuggestedQueries = useCallback((_threadId?: string) => {

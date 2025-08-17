@@ -87,41 +87,45 @@ export default function Home() {
   const [prevStatus, setPrevStatus] = useState<typeof status>('idle');
   const lastAssistantMessageId = useRef<string | null>(null);
 
-  // Generate suggested queries only after agent response is complete
+  // Simple suggested queries generation - only after conversation completes
   useEffect(() => {
+    // Only generate when conversation completes
     const hasJustCompleted = prevStatus === 'streaming' && status === 'idle';
+    
     if (hasJustCompleted && messages.length >= 2 && currentThreadId) {
-      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
-      if (lastAssistant && lastAssistant.id !== lastAssistantMessageId.current) {
-        const timeoutId = setTimeout(() => {
-          lastAssistantMessageId.current = lastAssistant.id || Math.random().toString(36).slice(2);
-          // Force generation each assistant turn with context change logic inside the hook
-          forceGenerateSuggestedQueries(messages, currentThreadId);
-        }, 600);
-        return () => clearTimeout(timeoutId);
-      }
+      // Simple delay to ensure everything is settled
+      setTimeout(() => {
+        refreshSuggestedQueries(messages, currentThreadId);
+      }, 500);
     }
+    
+    // Always update previous status
     setPrevStatus(status);
-  }, [status, messages, currentThreadId, forceGenerateSuggestedQueries, lastUpdated, prevStatus]);
+  }, [status, prevStatus, messages, currentThreadId, refreshSuggestedQueries]);
 
-  // Wrap sendMessage to handle view changes
+  // Simple wrapper that handles view changes
   const wrappedSendMessage = (message: string) => {
-    const startingFromHome = currentView === 'home'
-    if (startingFromHome) {
-      // Only create a new thread if there is no active thread or it's a pending unsent thread
-      const shouldCreate = !currentThreadId || messages.length === 0;
-      if (shouldCreate) {
-        createNewThread()
-      }
+    // If sending from home page, always create a new thread regardless of current state
+    if (currentView === 'home') {
       setCurrentView('chat')
+      // Always create a new thread when sending from home page
+      createNewThread()
+    } else if (!currentThreadId) {
+      // If not on home but no thread exists, create one
+      createNewThread()
     }
+    
+    // Send the message
     sendMessage(message)
   }
 
   // Wrap handleSubmit to handle view changes
   const wrappedHandleSubmit = (e: React.FormEvent) => {
+    // If submitting from home page, always create a new thread
     if (currentView === "home") {
       setCurrentView("chat")
+      // Always create a new thread when submitting from home page
+      createNewThread()
     }
     handleSubmit(e)
   }
@@ -228,10 +232,15 @@ export default function Home() {
     if (currentView === "home") {
       setCurrentView("chat")
     }
+    
+    // Create a new thread - this will clear the current one
     createNewThread()
+    
+    // Just to be safe, also clear images
+    clearImages()
   }
 
-  // Handler to refresh suggested queries
+  // Simple refresh function
   const handleRefreshSuggestions = () => {
     if (messages.length >= 2 && currentThreadId) {
       refreshSuggestedQueries(messages, currentThreadId);
@@ -310,20 +319,21 @@ export default function Home() {
       />      {/* Conversation Sidebar */}
       <ConversationSidebar
         isOpen={isSidebarOpen}
-        threads={chatThreads.map(thread => ({
-          ...thread,
-          createdAt: new Date(thread.createdAt),
-          updatedAt: new Date(thread.updatedAt)
-        }))}
+        threads={chatThreads
+          .filter(thread => thread.messages && thread.messages.length > 0) // Only show threads with messages
+          .map(thread => ({
+            ...thread,
+            createdAt: new Date(thread.createdAt),
+            updatedAt: new Date(thread.updatedAt)
+          }))}
         currentThreadId={currentThreadId}
         onThreadSelect={(threadId) => {
-          // First ensure we're not in pending new thread state
           switchToThread(threadId)
-          // Then update the view
           setCurrentView("chat")
           setIsSidebarOpen(false)
         }}
         onNewChat={() => {
+          // Create new thread and clear everything
           createNewThread()
           setCurrentView("chat")
           setIsSidebarOpen(false)
@@ -370,8 +380,6 @@ export default function Home() {
               handleSubmit={wrappedHandleSubmit}
               sendMessage={wrappedSendMessage}
               isLoading={status === 'streaming'}
-              suggestedQueries={getSuggestedQueries()}
-              onSuggestedQueryClick={handleSendMessage}
             />
           </>
         )}
@@ -399,8 +407,6 @@ export default function Home() {
               handleSubmit={wrappedHandleSubmit}
               sendMessage={sendMessage}
               isLoading={status === 'streaming'}
-              suggestedQueries={getSuggestedQueries()}
-              onSuggestedQueryClick={handleSendMessage}
             />
           </>
         )}

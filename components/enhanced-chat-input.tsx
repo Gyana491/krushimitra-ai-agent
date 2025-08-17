@@ -17,8 +17,9 @@ interface EnhancedChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   sendMessage?: (message: string) => void; // Add direct send message function
   isLoading: boolean;
-  suggestedQueries?: string[];
-  onSuggestedQueryClick?: (query: string) => void;
+  // Removed suggested queries from chat input
+  // suggestedQueries?: string[];
+  // onSuggestedQueryClick?: (query: string) => void;
 }
 
 export function EnhancedChatInput({
@@ -32,8 +33,6 @@ export function EnhancedChatInput({
   handleSubmit,
   sendMessage,
   isLoading,
-  suggestedQueries = [],
-  onSuggestedQueryClick
 }: EnhancedChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -94,24 +93,7 @@ export function EnhancedChatInput({
   return (
     <div className="fixed bottom-0 left-0 right-0 lg:left-80 z-30 p-4 flex justify-center bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
       <div className="w-full max-w-4xl mx-auto">
-      {/* Suggested Queries */}
-      {suggestedQueries.length > 0 && (
-        <div className="mb-3">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {suggestedQueries.map((query, index) => (
-              <Button
-                key={index}
-                variant="outline"
-                size="sm"
-                onClick={() => onSuggestedQueryClick?.(query)}
-                className="whitespace-nowrap text-xs px-3 py-1 h-auto min-w-fit flex-shrink-0 bg-muted/50 hover:bg-emerald-600 hover:text-white border-muted-foreground/20 hover:border-emerald-600 transition-colors"
-              >
-                {query}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Suggested Queries removed from chat input */}
 
       {/* Voice Error Display */}
       {voiceError && (

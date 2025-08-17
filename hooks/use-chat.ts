@@ -49,29 +49,27 @@ export const useChat = () => {
 
   const { sendMessage: sendApiMessage } = useChatAPI();
 
-  // Initialize thread on mount or when currentThreadId changes
+  // Simple initialization: load messages if we have a thread ID
   useEffect(() => {
     if (currentThreadId) {
       const currentThread = getCurrentThread();
       if (currentThread) {
         updateMessages(currentThread.messages);
       }
-    } else if (!isPendingNewThread && chatThreads.length === 0) {
-      // Create initial pending thread if none exists and not already pending
-      createNewThread();
-    } else if (!isPendingNewThread && !currentThreadId && chatThreads.length > 0) {
-      // Only switch to the most recent thread if no current thread is selected
-      // This prevents auto-switching when a thread is already selected
-      const mostRecent = chatThreads[0];
-      switchToThread(mostRecent.id);
     }
-  }, [currentThreadId, chatThreads.length, isPendingNewThread, createNewThread, getCurrentThread, switchToThread, updateMessages]);
+  }, [currentThreadId, getCurrentThread, updateMessages]);
 
-  // Update current thread when messages change (only if we have messages or not pending)
+  // Update thread storage whenever messages change
   useEffect(() => {
-    if (messages.length > 0 && currentThreadId) {
-      // Only update if we have both messages and a current thread ID
-      updateCurrentThread(messages);
+    if (currentThreadId) {
+      if (messages.length > 0) {
+        // Only update if we have both messages and a current thread
+        updateCurrentThread(messages);
+      } else {
+        // If we have no messages but a thread ID, don't store the empty thread
+        // We'll keep the thread ID in memory but won't persist it until it has messages
+        console.log('Not storing empty chat thread');
+      }
     }
   }, [messages, updateCurrentThread, currentThreadId]);
 
@@ -82,27 +80,32 @@ export const useChat = () => {
     console.log('Total messages in thread:', messages.length);
     console.log('Current thread ID:', currentThreadId);
     console.log('Is pending new thread:', isPendingNewThread);
-  }, [messages, status, currentThreadId, isPendingNewThread]);
+    console.log('Total threads:', chatThreads.length);
+    console.log('Threads with messages:', chatThreads.filter(t => t.messages && t.messages.length > 0).length);
+  }, [messages, status, currentThreadId, isPendingNewThread, chatThreads]);
 
+  // Simple clear function
   const clearCurrentThread = () => {
     clearThread();
     clearMessages();
     clearImages();
   };
 
+  // Create new thread and reset state
   const handleCreateNewThread = () => {
-    createNewThread();
     clearMessages();
     clearImages();
+    setInput('');
+    createNewThread();
   };
 
+  // Simple switch thread function
   const handleSwitchToThread = (threadId: string) => {
     const thread = switchToThread(threadId);
     if (thread) {
-      updateMessages(thread.messages);
       clearImages();
-      // Reset input to prevent carrying over text from previous thread
       setInput('');
+      updateMessages(thread.messages);
     }
   };
 
@@ -121,14 +124,23 @@ export const useChat = () => {
     const imagesToSend = [...selectedImages];
     clearImages();
     
-    await sendApiMessage(
-      userMessage,
-      imagesToSend,
-      messages,
-      updateMessages,
-      setStatus,
-      setStreamingState
-    );
+    // Create a new thread if we don't have one, but it won't be stored until messages exist
+    if (!currentThreadId) {
+      createNewThread();
+    }
+    
+    // Only empty threads don't get persisted, but once we have a message, it will be saved
+    if (userMessage.trim() || imagesToSend.length > 0) {
+      // Send the message
+      await sendApiMessage(
+        userMessage,
+        imagesToSend,
+        messages,
+        updateMessages,
+        setStatus,
+        setStreamingState
+      );
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
