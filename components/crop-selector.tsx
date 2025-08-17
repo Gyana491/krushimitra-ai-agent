@@ -59,31 +59,8 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
         </Button>
       </div>
 
-      {/* Suggested crops */}
-      <div className="mb-3">
-        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
-          {translate ? translate('cropSuggestedLabel' as string) : 'Suggested'}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {POPULAR_CROPS.filter(c => !value.includes(c)).map(crop => {
-            const active = value.includes(crop)
-            return (
-              <button
-                type="button"
-                key={crop}
-                onClick={() => toggle(crop)}
-                className={`px-3 py-1 rounded-full text-xs border transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${active ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white hover:bg-emerald-50 border-gray-300 text-gray-700'} `}
-                aria-pressed={active}
-              >
-                {t(crop)}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Selected crops */}
-      <div>
+      {/* Selected crops (moved just below input) */}
+      <div className="mb-6">
         <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
           {translate ? translate('cropSelectedLabel' as string) : 'Selected'} {value.length > 0 && `(${value.length})`}
         </p>
@@ -110,6 +87,31 @@ export function CropSelector({ value, onChange, translate, className }: CropSele
           </div>
         )}
       </div>
+
+      {/* Suggested crops */}
+      <div className="mb-3">
+        <p className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+          {translate ? translate('cropSuggestedLabel' as string) : 'Suggested'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {POPULAR_CROPS.filter(c => !value.includes(c)).map(crop => {
+            const active = value.includes(crop)
+            return (
+              <button
+                type="button"
+                key={crop}
+                onClick={() => toggle(crop)}
+                className={`px-3 py-1 rounded-full text-xs border transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-emerald-500 ${active ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-white hover:bg-emerald-50 border-gray-300 text-gray-700'} `}
+                aria-pressed={active}
+              >
+                {t(crop)}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+  {/* (Selected crops moved above) */}
     </div>
   )
 }
