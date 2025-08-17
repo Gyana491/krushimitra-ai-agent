@@ -12,20 +12,7 @@ interface SuggestedQueries {
   contextHash: string;
 }
 
-interface DBSchema {
-  chatThreads: {
-    key: string;
-    value: ChatThread;
-    indexes: {
-      createdAt: string;
-      updatedAt: string;
-    };
-  };
-  suggestedQueries: {
-    key: string;
-    value: SuggestedQueries;
-  };
-}
+// (Removed unused DBSchema interface to satisfy linter)
 
 class ChatDatabase {
   private db: IDBDatabase | null = null;
@@ -61,7 +48,7 @@ class ChatDatabase {
 
         // Create suggested queries object store
         if (!db.objectStoreNames.contains(SUGGESTED_QUERIES_STORE)) {
-          const queriesStore = db.createObjectStore(SUGGESTED_QUERIES_STORE, { keyPath: 'id' });
+          db.createObjectStore(SUGGESTED_QUERIES_STORE, { keyPath: 'id' });
         }
       };
     });

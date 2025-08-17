@@ -109,8 +109,8 @@ export const useChat = () => {
     }
   };
 
-  const handleDeleteThread = (threadId: string) => {
-    const remainingThread = deleteThread(threadId);
+  const handleDeleteThread = async (threadId: string) => {
+    const remainingThread = await deleteThread(threadId);
     if (remainingThread) {
       updateMessages(remainingThread.messages);
     } else {

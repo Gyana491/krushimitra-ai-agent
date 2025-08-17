@@ -6,11 +6,6 @@ import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
 import { Database, Download, Trash2, RefreshCw, X } from "lucide-react"
 
-interface SettingsData {
-  // Define at least one property
-  theme?: 'light' | 'dark' | 'system';
-}
-
 interface SettingsPanelProps {
   onClose: () => void
   onExportData: () => void

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { EnhancedChatMessages } from "@/components/enhanced-chat-messages"
 import { EnhancedChatInput } from "@/components/enhanced-chat-input"
 import { MobileHeader } from "@/components/mobile-header"

@@ -116,9 +116,10 @@ export const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
         updateMarker(lat,lng)
       }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded])
 
-  const mapInstance = () => {
+  const mapInstance = useCallback(() => {
     if (!mapRef.current) return null
     if (!(mapRef.current as any)._map && window.google) {
       const initialZoom = coords ? 18 : 4 // Maximum zoom when we have coordinates
@@ -210,9 +211,9 @@ export const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
       }
     }
     return (mapRef.current as any)._map
-  }
+  }, [allowAreaSelection, coords, selectedBounds])
 
-  const updateMarker = (lat:number,lng:number) => {
+  const updateMarker = useCallback((lat:number,lng:number) => {
     const map = mapInstance()
     if (!map) return
     if (!markerRef.current) {
@@ -240,7 +241,7 @@ export const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
     } else {
       markerRef.current.setPosition({ lat, lng })
     }
-  }
+  }, [mapInstance, selectedBounds])
 
   // Helper function to get bounds from different overlay types
   const getOverlayBounds = (overlay: any, type: any) => {
@@ -388,7 +389,7 @@ export const GoogleLocationPicker: React.FC<GoogleLocationPickerProps> = ({
       mapInstance()
       if (coords) updateMarker(coords.lat, coords.lng)
     }
-  }, [loaded, coords, showMap])
+  }, [loaded, coords, showMap, mapInstance, updateMarker])
 
   const persist = (address:string, lat:number, lng:number) => {
     persistWithBounds(address, lat, lng, selectedBounds || undefined, areaSize || undefined, cityName || undefined, stateName || undefined)

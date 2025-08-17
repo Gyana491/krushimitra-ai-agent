@@ -317,7 +317,7 @@ export const useChatThreads = () => {
     event.target.value = '';
   }, []);
 
-  const getCurrentThread = useCallback(() => {
+  const getCurrentThread = useCallback((): ChatThread | null => {
     return chatThreads.find(t => t.id === currentThreadId) || null;
   }, [chatThreads, currentThreadId]);
 
