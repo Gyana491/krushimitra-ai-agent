@@ -410,7 +410,14 @@ export default function Home() {
           <>
             <div className="flex-1 overflow-y-auto space-y-4">
               <WeatherSection 
-                location={selectedLocation || "Unknown Location"} 
+                location={selectedLocation || "Unknown Location"}
+                onGetAdvice={({ date }) => {
+                  // Ensure we move to chat view and new thread similar to homepage send
+                  setCurrentView('chat')
+                  createNewThread()
+                  const friendly = new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                  wrappedSendMessage(`Give me weather advice for: ${friendly}`)
+                }}
               />
               {/* Suggested queries block on home */}
               <div className="px-4">

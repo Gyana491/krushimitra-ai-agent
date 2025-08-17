@@ -2,8 +2,8 @@ import { createTool } from '@mastra/core/tools';
 import { z } from 'zod';
 import axios from 'axios';
 
-export const perplexityTool = createTool({
-  id: 'perplexity-research',
+export const webResearch = createTool({
+  id: 'web-research',
   description: 'Research topics using Perplexity AI for real-time web data',
   inputSchema: z.object({
     query: z.string().describe('Research query or topic'),

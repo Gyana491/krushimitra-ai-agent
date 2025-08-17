@@ -4,13 +4,14 @@ import { useState, useEffect, useCallback } from "react"
 import { useSelectedLocation } from "@/hooks/use-selected-location"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Cloud, Wind, Droplets, Compass, Loader2 } from "lucide-react"
+import { Cloud, Wind, Droplets, Compass, Loader2, Sun, CloudSun, CloudRain, CloudDrizzle, CloudSnow, CloudLightning, CloudFog } from "lucide-react"
 // Location input will be used in future features
 // import { LocationInput } from "./location-input"
 import { useTranslation } from "@/hooks/use-translation"
 
 interface WeatherSectionProps {
   location?: string // deprecated: kept for backward compatibility, ignored if selected-location exists
+  onGetAdvice?: (payload: { date: string; index: number; label: string }) => void
 }
 
 interface WeatherData {
@@ -37,7 +38,7 @@ interface WeatherData {
   }>
 }
 
-export function WeatherSection({ location: initialLocation }: WeatherSectionProps) {
+export function WeatherSection({ location: initialLocation, onGetAdvice }: WeatherSectionProps) {
   const { t } = useTranslation()
   const { address, city, state } = useSelectedLocation()
   const [selectedDay, setSelectedDay] = useState(0)
@@ -110,7 +111,7 @@ export function WeatherSection({ location: initialLocation }: WeatherSectionProp
   // Storage listener handled by useSelectedLocation
 
   const days =
-    weatherData?.forecast.slice(0, 6).map((day, index) => {
+    weatherData?.forecast.slice(0, 10).map((day, index) => {
       const date = new Date(day.date)
       const dayNames = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const
       const dayName = dayNames[date.getDay()]
@@ -124,6 +125,24 @@ export function WeatherSection({ location: initialLocation }: WeatherSectionProp
     }) || []
 
   const currentDayWeather = weatherData?.forecast[selectedDay] || weatherData?.currentWeather
+
+  // Map condition keys (from API) to icons
+  const getConditionIcon = (key?: string) => {
+    if (!key) return <Cloud className="h-8 w-8 text-emerald-500" />
+    const k = key.toLowerCase()
+    if (k.includes('thunder')) return <CloudLightning className="h-8 w-8 text-yellow-500" />
+    if (k.includes('violent')) return <CloudLightning className="h-8 w-8 text-yellow-600" />
+    if (k.includes('hail')) return <CloudLightning className="h-8 w-8 text-yellow-500" />
+    if (k.includes('snow') || k.includes('freezing')) return <CloudSnow className="h-8 w-8 text-sky-500" />
+    if (k.includes('drizzle')) return <CloudDrizzle className="h-8 w-8 text-sky-500" />
+    if (k.includes('shower')) return <CloudRain className="h-8 w-8 text-blue-500" />
+    if (k.includes('rain')) return <CloudRain className="h-8 w-8 text-blue-500" />
+    if (k.includes('fog')) return <CloudFog className="h-8 w-8 text-gray-500" />
+    if (k.includes('clear')) return <Sun className="h-8 w-8 text-amber-400" />
+    if (k.includes('partly') || k.includes('mainly')) return <CloudSun className="h-8 w-8 text-amber-300" />
+    if (k.includes('overcast') || k.includes('cloud')) return <Cloud className="h-8 w-8 text-gray-500" />
+    return <Cloud className="h-8 w-8 text-emerald-500" />
+  }
 
   if (loading) {
     return (
@@ -148,81 +167,106 @@ export function WeatherSection({ location: initialLocation }: WeatherSectionProp
 
   return (
     <div className="p-4 space-y-4">
-      {/* Date Picker */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {days.map((day) => (
-          <button
-            key={day.index}
-            onClick={() => setSelectedDay(day.index)}
-            className={`flex-shrink-0 flex flex-col items-center p-3 rounded-full min-w-[60px] ${
-              selectedDay === day.index ? "bg-emerald-500 text-white" : "bg-white text-gray-600"
-            }`}
-          >
-            <span className="text-xs font-medium">{day.day}</span>
-            <span className="text-lg font-bold">{day.date}</span>
-          </button>
-        ))}
+      {/* Date Picker: single-line scroll on small, multiline grid on large */}
+      <div className="w-full">
+        <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory scrollbar-thin sm:scrollbar-none lg:grid lg:grid-cols-10 lg:gap-2 lg:overflow-visible">
+          {days.map((day) => {
+            const fc = weatherData?.forecast[day.index]
+            return (
+              <button
+                key={day.index}
+                onClick={() => setSelectedDay(day.index)}
+                className={`snap-start flex-shrink-0 w-[66px] sm:w-[72px] lg:w-auto flex flex-col items-center justify-center py-2 rounded-xl border transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-400/60 focus:ring-offset-1 ${
+                  selectedDay === day.index ? "bg-emerald-500 text-white border-emerald-500 shadow-sm" : "bg-white text-gray-600 border-gray-200 hover:border-emerald-300"
+                }`}
+                aria-label={`${day.day} ${day.date}`}
+              >
+                <div className="mb-1 sm:mb-2 scale-90 sm:scale-100">{getConditionIcon(fc?.conditions)}</div>
+                <span className="text-sm sm:text-base font-semibold leading-none">{day.date}</span>
+                <span className="text-[10px] sm:text-xs font-medium truncate w-full text-center leading-tight mt-1">{day.day}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Weather Info */}
-      <Card className="p-4 bg-white">
-        <div className="flex items-center justify-between mb-4">
+      <Card className="p-5 bg-white border shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <div className="flex-1">
             <div className="flex items-center gap-3">
               <div>
-                <h3 className="font-medium text-gray-900">{cityName || weatherData?.location || location}</h3>
+                <h3 className="font-semibold text-gray-900 text-lg tracking-tight">{cityName || weatherData?.location || location}</h3>
                 {stateName && cityName && (
                   <p className="text-sm text-gray-500">{stateName}</p>
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-2xl font-bold">
-                {selectedDay === 0
-                  ? `${Math.round(weatherData?.currentWeather.temperature || 0)}°C`
-                  : `${Math.round(weatherData?.forecast[selectedDay]?.maxTemp || 0)}°C`}
-              </span>
-              <span className="text-gray-600">
-                {selectedDay === 0 ? weatherData?.currentWeather.conditions : currentDayWeather?.conditions}
+            <div className="flex items-center gap-4 mt-2">
+              <div className="flex items-center gap-2">
+                {getConditionIcon(selectedDay === 0 ? weatherData?.currentWeather.conditions : currentDayWeather?.conditions)}
+                <span className="text-4xl font-bold leading-none">
+                  {selectedDay === 0
+                    ? `${Math.round(weatherData?.currentWeather.temperature || 0)}°C`
+                    : `${Math.round(weatherData?.forecast[selectedDay]?.maxTemp || 0)}°C`}
+                </span>
+              </div>
+              <span className="text-gray-600 text-sm font-medium capitalize">
+                {(() => {
+                  const key = selectedDay === 0 ? weatherData?.currentWeather.conditions : currentDayWeather?.conditions;
+                  return key ? t(key as any) : '';
+                })()}
               </span>
             </div>
           </div>
-          <Button className="bg-emerald-500 hover:bg-emerald-600 text-white">{t("getWeatherAdvice")}</Button>
+          <div className="flex md:flex-col gap-2 items-stretch w-full md:w-auto">
+            <Button
+              onClick={() => {
+                if (!weatherData) return
+                const target = weatherData.forecast[selectedDay]
+                const date = target?.date || new Date().toISOString().split('T')[0]
+                const label = `${date}`
+                onGetAdvice?.({ date, index: selectedDay, label })
+              }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white flex-1 md:flex-none whitespace-nowrap shadow"
+            >
+              {t("getWeatherAdvice")}
+            </Button>
+          </div>
         </div>
-
         {/* Weather Metrics */}
-        <div className="grid grid-cols-4 gap-3">
-          <div className="bg-blue-50 p-3 rounded-lg text-center">
-            <Cloud className="h-6 w-6 text-blue-500 mx-auto mb-1" />
-            <div className="text-xs text-gray-600">{t("rainfall")}</div>
-            <div className="font-bold text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+          <div className="relative rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100/40 p-3 flex flex-col items-center text-center">
+            <Cloud className="h-6 w-6 text-blue-500 mb-1" />
+            <div className="text-[11px] font-medium text-blue-700 tracking-wide uppercase">{t("rainfall")}</div>
+            <div className="font-semibold text-sm mt-0.5">
               {selectedDay === 0
                 ? `${Math.round(weatherData?.forecast[0]?.precipitationChance || 0)}%`
                 : `${Math.round(weatherData?.forecast[selectedDay]?.precipitationChance || 0)}%`}
             </div>
           </div>
-          <div className="bg-green-50 p-3 rounded-lg text-center">
-            <Wind className="h-6 w-6 text-green-500 mx-auto mb-1" />
-            <div className="text-xs text-gray-600">{t("windSpeed")}</div>
-            <div className="font-bold text-sm">
+          <div className="relative rounded-lg border border-green-100 bg-gradient-to-br from-green-50 to-green-100/40 p-3 flex flex-col items-center text-center">
+            <Wind className="h-6 w-6 text-green-600 mb-1" />
+            <div className="text-[11px] font-medium text-green-700 tracking-wide uppercase">{t("windSpeed")}</div>
+            <div className="font-semibold text-sm mt-0.5">
               {selectedDay === 0
                 ? `${Math.round(weatherData?.currentWeather.windSpeed || 0)} km/h`
                 : `${Math.round(weatherData?.forecast[selectedDay]?.maxWindSpeed || 0)} km/h`}
             </div>
           </div>
-          <div className="bg-blue-50 p-3 rounded-lg text-center">
-            <Droplets className="h-6 w-6 text-blue-500 mx-auto mb-1" />
-            <div className="text-xs text-gray-600">{t("humidity")}</div>
-            <div className="font-bold text-sm">
+          <div className="relative rounded-lg border border-sky-100 bg-gradient-to-br from-sky-50 to-sky-100/40 p-3 flex flex-col items-center text-center">
+            <Droplets className="h-6 w-6 text-sky-600 mb-1" />
+            <div className="text-[11px] font-medium text-sky-700 tracking-wide uppercase">{t("humidity")}</div>
+            <div className="font-semibold text-sm mt-0.5">
               {selectedDay === 0
                 ? `${Math.round(weatherData?.currentWeather.humidity || 0)}%`
                 : `${Math.round(weatherData?.currentWeather.humidity || 0)}%`}
             </div>
           </div>
-          <div className="bg-orange-50 p-3 rounded-lg text-center">
-            <Compass className="h-6 w-6 text-orange-500 mx-auto mb-1" />
-            <div className="text-xs text-gray-600">{t("feelsLike")}</div>
-            <div className="font-bold text-sm">
+            <div className="relative rounded-lg border border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100/40 p-3 flex flex-col items-center text-center">
+            <Compass className="h-6 w-6 text-orange-600 mb-1" />
+            <div className="text-[11px] font-medium text-orange-700 tracking-wide uppercase">{t("feelsLike")}</div>
+            <div className="font-semibold text-sm mt-0.5">
               {selectedDay === 0
                 ? `${Math.round(weatherData?.currentWeather.feelsLike || 0)}°C`
                 : `${Math.round(weatherData?.forecast[selectedDay]?.maxFeelsLike || 0)}°C`}

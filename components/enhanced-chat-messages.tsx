@@ -1,10 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChatMessage } from '@/hooks/use-chat-messages';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Leaf, User, CloudSun, IndianRupee, BookOpenText, Database, Loader2, CheckCircle2, XCircle, Sparkles, CornerDownRight } from "lucide-react";
+import { Bot, Leaf, User, CloudSun, IndianRupee, BookOpenText, Database, Loader2, CheckCircle2, XCircle, Sparkles, CornerDownRight, ChevronDown, AlertCircle, Wrench } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { useTranslation } from "@/hooks/use-translation";
@@ -93,56 +93,86 @@ const TOOL_UI: Record<string, { label: string; description: string; icon: React.
   'kcc-database-tool': { label: 'Knowledge Base', description: 'Searching stored farming knowledge', icon: <Database className="h-4 w-4" /> },
 };
 
-function ToolCallDisplay({ toolCalls }: { toolCalls: DisplayToolCall[] }) {
-  if (!toolCalls || toolCalls.length === 0) return null;
+// Accordion style tool calls container
+function ToolCallDisplay({ toolCalls, finalizing }: { toolCalls: DisplayToolCall[]; finalizing?: boolean }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  // Open the latest active (pending) tool call automatically
+  useEffect(() => {
+    const pending = toolCalls.find(t => t.status === 'pending');
+    if (pending) {
+      setOpenId(prev => (prev === pending.id ? prev : pending.id));
+    } else if (finalizing) {
+      // Close all when final response being assembled
+      setOpenId(null);
+    }
+  }, [toolCalls, finalizing]);
 
   const completed = toolCalls.filter(t => t.status === 'completed').length;
-  const percent = Math.round((completed / toolCalls.length) * 100);
+  const percent = toolCalls.length > 0 ? Math.round((completed / toolCalls.length) * 100) : 0;
+
+  if (!toolCalls || toolCalls.length === 0) return null;
 
   return (
-    <div className="mb-4 max-w-[90%] mr-auto space-y-3">
-      <div className="px-3 py-2 rounded-md bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300">Preparing your answer...</p>
-          <span className="text-[10px] text-emerald-600 dark:text-emerald-400">{percent}%</span>
+    <div className="mb-4 max-w-[90%] mr-auto space-y-2">
+      <div className="px-3 py-2 rounded-md bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 flex items-center gap-3">
+        <div className="flex-1">
+          <p className="text-xs font-medium text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
+            <Loader2 className={"h-3 w-3 " + (percent === 100 ? 'hidden' : 'animate-spin')} />
+            {percent === 100 ? 'Fetched all data sources' : 'Gathering data sources'}
+          </p>
+          <div className="mt-1 h-1 w-full bg-emerald-200/60 dark:bg-emerald-800 rounded overflow-hidden">
+            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${percent}%` }} />
+          </div>
         </div>
-        <div className="h-1 w-full bg-emerald-200/60 dark:bg-emerald-800 rounded overflow-hidden">
-          <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${percent}%` }} />
-        </div>
+        <span className="text-[10px] w-10 text-right text-emerald-700 dark:text-emerald-400 font-medium">{percent}%</span>
       </div>
-      <div className="space-y-2">
-        {toolCalls.map((toolCall, idx) => {
-          const meta = TOOL_UI[toolCall.name] || { label: toolCall.name, description: 'Gathering info', icon: <Loader2 className="h-4 w-4 animate-spin" /> };
-          const statusIcon = toolCall.status === 'completed' ? (
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          ) : toolCall.status === 'error' ? (
-            <XCircle className="h-4 w-4 text-red-600" />
-          ) : (
-            <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
-          );
+      <div className="rounded-md border border-emerald-200/60 dark:border-emerald-800 divide-y divide-emerald-200/50 dark:divide-emerald-800 bg-white dark:bg-gray-900/40 overflow-hidden">
+        {toolCalls.map(toolCall => {
+          const meta = TOOL_UI[toolCall.name] || { label: toolCall.name, description: 'Gathering info', icon: <Wrench className="h-4 w-4" /> };
+          const isOpen = openId === toolCall.id;
+          const statusIcon = toolCall.status === 'completed'
+            ? <CheckCircle2 className="h-4 w-4 text-green-600" />
+            : toolCall.status === 'error'
+              ? <XCircle className="h-4 w-4 text-red-600" />
+              : <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />;
           return (
-            <div key={toolCall.id} className="flex items-start gap-2">
-              <div className="flex flex-col items-center">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center border bg-white dark:bg-gray-900 ${toolCall.status === 'completed' ? 'border-green-500' : toolCall.status === 'error' ? 'border-red-500' : 'border-amber-400 animate-pulse'}`}>{statusIcon}</div>
-                {idx < toolCalls.length - 1 && <div className="flex-1 w-px bg-gradient-to-b from-gray-300 to-transparent dark:from-gray-700" />}
-              </div>
-              <Card className="flex-1 p-2.5 bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center gap-2">
-                  <div className="text-emerald-600 dark:text-emerald-400">{meta.icon}</div>
-                  <p className="text-xs font-medium text-gray-800 dark:text-gray-200">{meta.label}</p>
-                  <span className="ml-auto text-[10px] uppercase tracking-wide text-gray-400">{toolCall.status}</span>
+            <div key={toolCall.id}>
+              <button
+                type="button"
+                onClick={() => setOpenId(prev => prev === toolCall.id ? null : toolCall.id)}
+                className={"group w-full flex items-center gap-2 px-3 py-2 text-left text-xs hover:bg-emerald-50/70 dark:hover:bg-emerald-800/30 transition-colors " + (isOpen ? 'bg-emerald-50/90 dark:bg-emerald-800/40' : '')}
+              >
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="flex-shrink-0">{statusIcon}</span>
+                  <div className="text-emerald-600 dark:text-emerald-400 flex-shrink-0">{meta.icon}</div>
+                  <span className="font-medium text-gray-800 dark:text-gray-200 truncate">{meta.label}</span>
+                  <span className={"text-[10px] uppercase tracking-wide ml-1 " + (toolCall.status === 'completed' ? 'text-green-600 dark:text-green-400' : toolCall.status === 'error' ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400')}>{toolCall.status}</span>
+                  {toolCall.status === 'error' && <AlertCircle className="h-3 w-3 text-red-500 ml-1" />}
                 </div>
-                <p className="text-[11px] mt-0.5 text-gray-600 dark:text-gray-400 leading-snug">{meta.description}</p>
-                {toolCall.status === 'error' && (
-                  <p className="text-[11px] text-red-600 mt-1">Could not fetch this info. Will continue.</p>
-                )}
-                {toolCall.status === 'completed' && toolCall.result && typeof toolCall.result === 'object' && (
-                  <details className="mt-1 group">
-                    <summary className="cursor-pointer text-[10px] text-emerald-600 dark:text-emerald-400 underline decoration-dotted">Details</summary>
-                    <pre className="mt-1 max-h-40 overflow-auto bg-gray-50 dark:bg-gray-900 p-2 rounded text-[10px] leading-tight whitespace-pre-wrap break-words max-w-full">{String(JSON.stringify(toolCall.result, null, 2))}</pre>
-                  </details>
-                )}
-              </Card>
+                <ChevronDown className={"h-4 w-4 text-emerald-600 transition-transform flex-shrink-0 " + (isOpen ? 'rotate-180' : '')} />
+              </button>
+              <div className={"px-3 pb-3 pt-1 text-[11px] space-y-2 " + (isOpen ? 'block' : 'hidden')}>                 
+                <p className="text-gray-600 dark:text-gray-400 leading-snug">{meta.description}</p>
+                <div className="grid gap-2">
+                  <div className="rounded-md bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 p-2">
+                    <p className="text-[10px] font-semibold text-gray-500 mb-1">Request</p>
+                    <pre className="text-[10px] leading-tight whitespace-pre-wrap break-words max-h-40 overflow-auto">{JSON.stringify(toolCall.args, null, 2)}</pre>
+                  </div>
+                  {toolCall.status === 'completed' && (
+                    <div className="rounded-md bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 p-2">
+                      <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-300 mb-1">Response</p>
+                      <pre className="text-[10px] leading-tight whitespace-pre-wrap break-words max-h-52 overflow-auto">{toolCall.result ? JSON.stringify(toolCall.result, null, 2) : 'No result'}</pre>
+                    </div>
+                  )}
+                  {toolCall.status === 'error' && (
+                    <div className="rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 p-2">
+                      <p className="text-[10px] font-semibold text-red-600 dark:text-red-300 mb-1">Error</p>
+                      <p>Failed to fetch data. Continuing without this source.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           );
         })}
@@ -167,6 +197,23 @@ export function EnhancedChatMessages({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const prevIsLoadingRef = useRef<boolean>(false);
+  const [persistedToolCalls, setPersistedToolCalls] = useState<DisplayToolCall[]>([]);
+
+  // Capture last tool calls when streaming
+  useEffect(() => {
+    if (streamingState?.toolCalls && streamingState.toolCalls.length > 0) {
+      setPersistedToolCalls(streamingState.toolCalls);
+    }
+  }, [streamingState?.toolCalls]);
+
+  // After loading finishes, keep the accordion visible
+  useEffect(() => {
+    if (prevIsLoadingRef.current && !isLoading) {
+      // just finished loading, we already have persisted tool calls
+    }
+    prevIsLoadingRef.current = isLoading;
+  }, [isLoading]);
   
   // Auto-scroll to bottom function with smooth behavior and gap
   const scrollToBottom = () => {
@@ -238,142 +285,130 @@ export function EnhancedChatMessages({
         </div>
       ) : (
         <>
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex gap-2",
-                "max-w-[85%] sm:max-w-[80%]",
-                message.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto",
-                "break-words overflow-hidden"
-              )}
-            >
-              <Avatar className="h-8 w-8 flex-shrink-0">
-                <AvatarFallback
+          {messages.map((message) => {
+            // Build aggregated tool calls for assistant messages
+            let aggregatedToolCalls: DisplayToolCall[] = [];
+            if (message.role === 'assistant') {
+              const toolCallParts = message.parts.filter(p => p.type === 'tool-call');
+              const resultParts = message.parts.filter(p => p.type === 'tool-result');
+              aggregatedToolCalls = toolCallParts.map((tc, index) => {
+                const id = tc.toolCallId || `${message.id}-tool-${index}`;
+                const matchingResult = resultParts.find(r => r.toolCallId && r.toolCallId === tc.toolCallId) || resultParts[index];
+                return {
+                  id,
+                  name: tc.toolName || 'tool',
+                  args: tc.toolArgs || {},
+                  result: matchingResult?.toolResult,
+                  status: matchingResult ? 'completed' as const : 'completed', // treat as completed when message stored
+                };
+              });
+            }
+
+            const filteredParts = message.parts.filter(p => p.type !== 'tool-call' && p.type !== 'tool-result');
+
+            return (
+              <div key={message.id} className="space-y-2">
+                {aggregatedToolCalls.length > 0 && (
+                  <div className="max-w-[85%] sm:max-w-[80%] mr-auto">
+                    <ToolCallDisplay toolCalls={aggregatedToolCalls} finalizing />
+                  </div>
+                )}
+                <div
                   className={cn(
-                    "text-xs",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-secondary-foreground",
+                    "flex gap-2",
+                    "max-w-[85%] sm:max-w-[80%]",
+                    message.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto",
+                    "break-words overflow-hidden"
                   )}
                 >
-                  {message.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                </AvatarFallback>
-              </Avatar>
-
-              <div className={cn("flex flex-col gap-1", message.role === "user" ? "items-end" : "items-start")}>
-                <Card
-                  className={cn(
-                    "p-3",
-                    message.role === "user" ? "bg-primary text-primary-foreground" : "bg-card",
-                  )}
-                >
-                  {/* Render message parts */}
-                  {message.parts.map((part, i) => {
-                    switch (part.type) {
-                      case 'text':
-                        return (
-                          <div key={i} className="prose text-sm leading-snug">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {part.text}
-                            </ReactMarkdown>
-                          </div>
-                        );
-                      
-                      case 'image':
-                        return (
-                          <div key={i} className="mb-2">
-                            <Image
-                              src={`data:${part.imageType};base64,${part.imageData}`}
-                              alt={part.imageName || 'Uploaded image'}
-                              width={256}
-                              height={256}
-                              className="rounded-md max-w-full h-auto max-h-64 object-cover"
-                            />
-                            {part.imageName && (
-                              <p className="text-xs text-gray-500 mt-1">{part.imageName}</p>
-                            )}
-                          </div>
-                        );
-                      
-                      case 'tool-call':
-                        return (
-                          <div key={i} className="mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded border border-blue-200 dark:border-blue-800">
-                            <div className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">
-                              🔧 Tool: {part.toolName}
-                            </div>
-                            <details className="text-xs">
-                              <summary className="cursor-pointer text-blue-600 dark:text-blue-400">
-                                View Arguments
-                              </summary>
-                              <pre className="mt-1 p-1 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                                {JSON.stringify(part.toolArgs, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
-                        );
-                      
-                      case 'tool-result':
-                        return (
-                          <div key={i} className="mb-2 p-2 bg-green-50 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-800">
-                            <div className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">
-                              ✅ Result
-                            </div>
-                            <details className="text-xs">
-                              <summary className="cursor-pointer text-green-600 dark:text-green-400">
-                                View Result
-                              </summary>
-                              <pre className="mt-1 p-1 bg-gray-100 dark:bg-gray-800 rounded text-xs overflow-x-auto">
-                                {JSON.stringify(part.toolResult, null, 2)}
-                              </pre>
-                            </details>
-                          </div>
-                        );
-                      
-                      case 'suggested-queries':
-                        if (!part.queries || part.queries.length === 0) return null;
-                        return (
-                          <div key={i} className="mt-2 space-y-2">
-                            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-emerald-600 font-medium">
-                              <Sparkles className="h-3 w-3" /> {t('suggestedFollowUps')}
-                            </div>
-                            <div className="flex flex-col gap-1">
-                              {part.queries.map((q, qi) => (
-                                <button
-                                  key={qi}
-                                  onClick={() => onSuggestedQueryClick?.(q)}
-                                  className="group flex items-start gap-2 text-left p-2 rounded-md border border-emerald-300 hover:border-emerald-400 bg-emerald-50/60 hover:bg-emerald-100 transition-colors cursor-pointer"
-                                >
-                                  <CornerDownRight className="h-4 w-4 text-emerald-500 mt-0.5" />
-                                  <span className="text-[13px] text-emerald-800 group-hover:text-emerald-900 leading-snug flex-1">{q}</span>
-                                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white group-hover:bg-emerald-700 ml-1">
-                                    {t('askButton')}
-                                  </span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      default:
-                        return null;
-                    }
-                  })}
-                </Card>
-
-                <span className="text-xs text-muted-foreground px-1">
-                  {formatTime(new Date())}
-                </span>
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarFallback
+                      className={cn(
+                        "text-xs",
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-secondary text-secondary-foreground",
+                      )}
+                    >
+                      {message.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className={cn("flex flex-col gap-1", message.role === "user" ? "items-end" : "items-start")}>                
+                    <Card
+                      className={cn(
+                        "p-3",
+                        message.role === "user" ? "bg-primary text-primary-foreground" : "bg-card",
+                      )}
+                    >
+                      {filteredParts.map((part, i) => {
+                        switch (part.type) {
+                          case 'text':
+                            return (
+                              <div key={i} className="prose text-sm leading-snug">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {part.text}
+                                </ReactMarkdown>
+                              </div>
+                            );
+                          case 'image':
+                            return (
+                              <div key={i} className="mb-2">
+                                <Image
+                                  src={`data:${part.imageType};base64,${part.imageData}`}
+                                  alt={part.imageName || 'Uploaded image'}
+                                  width={256}
+                                  height={256}
+                                  className="rounded-md max-w-full h-auto max-h-64 object-cover"
+                                />
+                                {part.imageName && (
+                                  <p className="text-xs text-gray-500 mt-1">{part.imageName}</p>
+                                )}
+                              </div>
+                            );
+                          case 'suggested-queries':
+                            if (!part.queries || part.queries.length === 0) return null;
+                            return (
+                              <div key={i} className="mt-2 space-y-2">
+                                <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-emerald-600 font-medium">
+                                  <Sparkles className="h-3 w-3" /> {t('suggestedFollowUps')}
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  {part.queries.map((q, qi) => (
+                                    <button
+                                      key={qi}
+                                      onClick={() => onSuggestedQueryClick?.(q)}
+                                      className="group flex items-start gap-2 text-left p-2 rounded-md border border-emerald-300 hover:border-emerald-400 bg-emerald-50/60 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                    >
+                                      <CornerDownRight className="h-4 w-4 text-emerald-500 mt-0.5" />
+                                      <span className="text-[13px] text-emerald-800 group-hover:text-emerald-900 leading-snug flex-1">{q}</span>
+                                      <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white group-hover:bg-emerald-700 ml-1">
+                                        {t('askButton')}
+                                      </span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          default:
+                            return null;
+                        }
+                      })}
+                    </Card>
+                    <span className="text-xs text-muted-foreground px-1">
+                      {formatTime(new Date())}
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </>
       )}
 
       {/* Show streaming state */}
   {isLoading && streamingState && (
         <>
-          <ToolCallDisplay toolCalls={streamingState.toolCalls} />
-          
+          <ToolCallDisplay toolCalls={streamingState.toolCalls} finalizing={!!streamingState.finalResponse} />
           {streamingState.finalResponse && (
             <div className="flex gap-2 max-w-[85%] mr-auto">
               <Avatar className="h-8 w-8 flex-shrink-0">
@@ -381,19 +416,23 @@ export function EnhancedChatMessages({
                   <Bot className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
-              <Card className="p-3 bg-card">
+              <Card className="p-3 bg-card border border-emerald-200/70">
                 <p className="text-sm leading-relaxed whitespace-pre-line">
                   {streamingState.finalResponse}
                 </p>
               </Card>
             </div>
           )}
-          
-          <FarmingLoadingIndicator step={streamingState.currentStep} />
+          {!streamingState.finalResponse && <FarmingLoadingIndicator step={streamingState.currentStep} />}
         </>
       )}
       
       {isLoading && !streamingState && <FarmingLoadingIndicator />}
+
+      {/* Persisted tool calls after completion (shown only when not loading) */}
+      {!isLoading && !streamingState && persistedToolCalls.length > 0 && (
+        <ToolCallDisplay toolCalls={persistedToolCalls} finalizing />
+      )}
 
       {/* Inline suggested queries after last assistant reply if not loading */}
       {!isLoading && suggestedQueries.length > 0 && (() => {

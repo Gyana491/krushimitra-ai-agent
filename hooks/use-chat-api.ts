@@ -282,6 +282,8 @@ export const useChatAPI = () => {
                             ...prev,
                             currentStep: 'Complete!'
                           }));
+                          // Explicitly mark streaming done here so UI stops showing loading
+                          setStatus('idle');
                         }
                         break;
                     }
@@ -333,6 +335,9 @@ export const useChatAPI = () => {
 
             updateMessages([...messagesWithUser, assistantMsg]);
           }
+
+          // Safety: ensure status is idle even if completion marker wasn't received
+          setStatus('idle');
 
         } catch (streamError) {
           console.error('Stream error:', streamError);
