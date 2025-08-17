@@ -11,8 +11,27 @@ interface MinimalGeocoderResult {
   address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
 }
 type GeocodeStatus = 'OK' | string;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const google: any; // Runtime provided by script
+interface GoogleMapsLike {
+  maps: {
+    places: {
+      Autocomplete: new (el: HTMLInputElement, opts: { types: string[]; fields: string[] }) => {
+        addListener: (ev: string, cb: () => void) => void;
+        getPlace: () => {
+          geometry?: { location?: { lat: () => number; lng: () => number } };
+          formatted_address?: string;
+          address_components?: Array<{ long_name: string; types: string[] }>;
+        };
+      };
+    };
+    Geocoder: new () => {
+      geocode: (
+        req: { location: { lat: number; lng: number } },
+        cb: (results: MinimalGeocoderResult[] | null, status: GeocodeStatus) => void
+      ) => void;
+    };
+  };
+}
+declare const google: GoogleMapsLike; // Runtime provided by script
 
 export interface SelectedLocationData { address: string; latitude: number; longitude: number; cityName?: string; stateName?: string; country?: string }
 interface GoogleLocationPickerProps { value?: string; onChange: (loc: SelectedLocationData) => void; placeholder?: string; className?: string; autoSaveToLocalStorage?: boolean }

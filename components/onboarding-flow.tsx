@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CropSelector } from "@/components/crop-selector"
-import { Leaf, MapPin, Globe, User, Sprout, Languages } from "lucide-react"
+import { Leaf, MapPin, User, Sprout, Languages } from "lucide-react"
 import { GoogleLocationPicker, SelectedLocationData } from "@/components/google-location-picker"
 import { useTranslation, type Language } from "@/hooks/use-translation"
 
