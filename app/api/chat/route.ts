@@ -9,12 +9,11 @@ interface UserContext {
   experience?: string;
   mainCrops?: string;
   farmSize?: string;
-  goals?: string;
 }
 
 function buildUserContextSystemMessage(userContext: UserContext): string {
   // Only include defined fields
-  const entries = Object.entries(userContext).filter(([, v]) => v !== undefined && v !== null && v !== "");
+  const entries = Object.entries(userContext).filter(([k, v]) => k !== 'goals' && v !== undefined && v !== null && v !== "");
   const lines = entries.map(([k, v]) => `${k}: ${v}`);
   return `USER CONTEXT\n${lines.join("\n")}\n---\nUse this factual profile to tailor agronomic, weather, and market advice.\nAdjust language to the user's preferred language if specified (language field).\nDo NOT redundantly ask for these details unless they are missing or clarification is truly needed.\nIf location is present, prioritize localized recommendations.\n`; 
 }

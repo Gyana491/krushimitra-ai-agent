@@ -7,7 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { CropSelector } from "@/components/crop-selector"
 import { Leaf, MapPin, Globe, User, Sprout, Languages } from "lucide-react"
+import { GoogleLocationPicker, SelectedLocationData } from "@/components/google-location-picker"
 import { useTranslation, type Language } from "@/hooks/use-translation"
 
 interface OnboardingData {
@@ -16,9 +18,8 @@ interface OnboardingData {
   language: string
   farmType: string
   experience: string
-  mainCrops: string
+  mainCrops: string[]
   farmSize: string
-  goals: string
 }
 
 interface OnboardingFlowProps {
@@ -33,9 +34,8 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     language: "English", // Default language
     farmType: "",
     experience: "",
-    mainCrops: "",
+    mainCrops: [],
     farmSize: "",
-    goals: "",
   })
 
   const { t, changeLanguage } = useTranslation()
@@ -54,7 +54,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     Odia: "or",
   }
 
-  const updateData = (field: keyof OnboardingData, value: string) => {
+  const updateData = (field: keyof OnboardingData, value: any) => {
     setData((prev) => ({ ...prev, [field]: value }))
     if (field === "language") {
       const languageCode = languageMap[value] || "en"
@@ -63,8 +63,10 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     }
   }
 
+  // Crop selection handled by component
+
   const nextStep = () => {
-    if (step < 5) {
+  if (step < 4) {
       setStep(step + 1)
     } else {
       onComplete(data)
@@ -147,12 +149,17 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
         <div className="space-y-4">
           <div className="space-y-3">
             <Label htmlFor="location">{t("onboarding.location.locationLabel")}</Label>
-            <Input
-              id="location"
-              placeholder={t("onboarding.location.locationPlaceholder")}
+            <GoogleLocationPicker
               value={data.location}
-              onChange={(e) => updateData("location", e.target.value)}
+              placeholder={t("onboarding.location.locationPlaceholder")}
+              onChange={(loc: SelectedLocationData) => {
+                const address = loc.address
+                updateData("location", address)
+              }}
             />
+            {data.location && (
+              <p className="text-xs text-muted-foreground break-words">{data.location}</p>
+            )}
           </div>
         </div>
       ),
@@ -217,42 +224,15 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             </Select>
           </div>
           <div className="space-y-3">
-            <Label htmlFor="mainCrops">{t("onboarding.experience.cropsLabel")}</Label>
-            <Input
-              id="mainCrops"
-              placeholder={t("onboarding.experience.cropsPlaceholder")}
+            <Label>{t("onboarding.experience.cropsLabel")}</Label>
+            <CropSelector
               value={data.mainCrops}
-              onChange={(e) => updateData("mainCrops", e.target.value)}
+              onChange={(crops) => updateData('mainCrops', crops)}
+              translate={(key: any) => t(key as any)}
             />
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: t("onboarding.goals.title"),
-      description: t("onboarding.goals.description"),
-      icon: <Globe className="w-8 h-8 text-primary" />,
-      content: (
-        <div className="space-y-4">
-          <div className="space-y-3">
-            <Label htmlFor="goals">{t("onboarding.goals.goalsLabel")}</Label>
-            <Textarea
-              id="goals"
-              placeholder={t("onboarding.goals.goalsPlaceholder")}
-              value={data.goals}
-              onChange={(e) => updateData("goals", e.target.value)}
-              rows={4}
-            />
-          </div>
-          <div className="bg-primary/5 p-4 rounded-lg">
-            <h3 className="font-medium text-primary mb-2">{t("onboarding.goals.helpTitle")}</h3>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• {t("onboarding.goals.features.disease")}</li>
-              <li>• {t("onboarding.goals.features.advice")}</li>
-              <li>• {t("onboarding.goals.features.weather")}</li>
-              <li>• {t("onboarding.goals.features.pest")}</li>
-              <li>• {t("onboarding.goals.features.soil")}</li>
-            </ul>
+            {data.mainCrops.length === 0 && (
+              <p className="text-xs text-muted-foreground">{t('onboarding.experience.cropsPlaceholder')}</p>
+            )}
           </div>
         </div>
       ),
@@ -270,7 +250,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           : step === 3
             ? data.farmType !== "" && data.farmSize !== ""
             : step === 4
-              ? data.experience !== "" && data.mainCrops.trim() !== ""
+              ? data.experience !== "" && data.mainCrops.length > 0
               : true
 
   return (

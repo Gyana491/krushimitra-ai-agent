@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useSelectedLocation } from "@/hooks/use-selected-location"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Cloud, Wind, Droplets, Compass, Loader2 } from "lucide-react"
@@ -9,7 +10,7 @@ import { Cloud, Wind, Droplets, Compass, Loader2 } from "lucide-react"
 import { useTranslation } from "@/hooks/use-translation"
 
 interface WeatherSectionProps {
-  location: string
+  location?: string // deprecated: kept for backward compatibility, ignored if selected-location exists
 }
 
 interface WeatherData {
@@ -38,6 +39,7 @@ interface WeatherData {
 
 export function WeatherSection({ location: initialLocation }: WeatherSectionProps) {
   const { t } = useTranslation()
+  const { address, city, state } = useSelectedLocation()
   const [selectedDay, setSelectedDay] = useState(0)
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -95,41 +97,17 @@ export function WeatherSection({ location: initialLocation }: WeatherSectionProp
   }, [location])
 
   useEffect(() => {
-    if (location) {
-      fetchWeather()
+    const effective = address || initialLocation || location
+    if (effective && effective !== location) {
+      setLocation(effective)
     }
-  }, [location, fetchWeather])
+    if (city) setCityName(city)
+    if (state) setStateName(state)
+    if (effective) fetchWeather()
+  }, [address, city, state, initialLocation, location, fetchWeather])
 
   // Listen for localStorage changes to update weather automatically
-  useEffect(() => {
-    const handleStorageChange = () => {
-      const savedLocation = localStorage.getItem('cropwise-selected-location')
-      if (savedLocation) {
-        try {
-          const locationData = JSON.parse(savedLocation)
-          if (locationData.address && locationData.address !== location) {
-            setLocation(locationData.address)
-          }
-          if (locationData.cityName) {
-            setCityName(locationData.cityName)
-          }
-          if (locationData.stateName) {
-            setStateName(locationData.stateName)
-          }
-        } catch {}
-      }
-    }
-
-    // Listen for localStorage changes from other components
-    window.addEventListener('storage', handleStorageChange)
-    
-    // Also check on component mount
-    handleStorageChange()
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange)
-    }
-  }, [location])
+  // Storage listener handled by useSelectedLocation
 
   const days =
     weatherData?.forecast.slice(0, 6).map((day, index) => {

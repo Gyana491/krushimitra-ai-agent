@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,18 +11,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Edit3, Save, Camera, Leaf, MapPin, Database, Download, RefreshCw, Trash2 } from "lucide-react"
+import { CropSelector } from "@/components/crop-selector"
+import { chatDB } from "@/lib/chat-db"
 
 interface UserProfileData {
   name: string
   email: string
   phone: string
-  location: string
+  location?: string
   language: string
   farmType: string
   experience: string
-  mainCrops: string
+  mainCrops: string[]
   farmSize: string
-  goals: string
   avatar?: string
   joinDate: string
   totalChats: number
@@ -41,13 +42,19 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState<UserProfileData>(userData)
   const [isFarmEditing, setIsFarmEditing] = useState(false)
+  // Support legacy string form by normalizing
+  const normalizeCrops = (mc: unknown): string[] => {
+    if (Array.isArray(mc)) return mc.map(c => String(c).trim()).filter(Boolean);
+    if (typeof mc === 'string') return mc.split(/[;,]/).map(c => c.trim()).filter(Boolean);
+    return [];
+  };
+  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops as any);
+
   const [farmEditData, setFarmEditData] = useState({
     farmType: userData.farmType,
     farmSize: userData.farmSize,
     experience: userData.experience,
-    location: userData.location,
-    mainCrops: userData.mainCrops,
-    goals: userData.goals
+  mainCrops: initialMainCrops
   })
 
   const updateEditData = (field: keyof UserProfileData, value: string | string[]) => {
@@ -64,7 +71,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
   }
 
   const handleFarmSave = () => {
-    onUpdate(farmEditData)
+    onUpdate({ ...farmEditData, mainCrops: farmEditData.mainCrops })
     setIsFarmEditing(false)
   }
 
@@ -78,12 +85,27 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
       farmType: userData.farmType,
       farmSize: userData.farmSize,
       experience: userData.experience,
-      location: userData.location,
-      mainCrops: userData.mainCrops,
-      goals: userData.goals
+  mainCrops: normalizeCrops(userData.mainCrops as any),
+      
     })
     setIsFarmEditing(false)
   }
+
+  // Derived location from global selected location storage
+  const [derivedLocation, setDerivedLocation] = useState<string | undefined>(userData.location)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('cropwise-selected-location')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed?.cityName && parsed?.stateName) {
+          setDerivedLocation(`${parsed.cityName}, ${parsed.stateName}`)
+        } else if (parsed?.address) {
+          setDerivedLocation(parsed.address)
+        }
+      }
+    } catch {}
+  }, [])
 
   const getExperienceBadgeColor = (experience: string) => {
     switch (experience.toLowerCase()) {
@@ -194,7 +216,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
                 <Badge className={getFarmSizeBadgeColor(userData.farmSize)}>{userData.farmSize} Farm</Badge>
                 <Badge variant="outline">
                   <MapPin className="w-3 h-3 mr-1" />
-                  {userData.location}
+                  {derivedLocation || 'Select Location'}
                 </Badge>
               </div>
             </div>
@@ -280,33 +302,17 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
                     </Select>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Location</Label>
-                    <Input
-                      value={farmEditData.location}
-                      onChange={(e) => updateFarmEditData("location", e.target.value)}
-                      placeholder="City, State, Country"
-                    />
-                  </div>
 
                   <div className="md:col-span-2 space-y-2">
                     <Label>Main Crops</Label>
-                    <Input
+                    <CropSelector
                       value={farmEditData.mainCrops}
-                      onChange={(e) => updateFarmEditData("mainCrops", e.target.value)}
-                      placeholder="e.g., Tomatoes, Corn, Wheat, Rice"
+                      onChange={(crops) => setFarmEditData(prev => ({ ...prev, mainCrops: crops }))}
                     />
+                    {farmEditData.mainCrops.length === 0 && <p className="text-xs text-muted-foreground">Select one or more crops</p>}
                   </div>
 
-                  <div className="md:col-span-2 space-y-2">
-                    <Label>Farming Goals</Label>
-                    <Textarea
-                      value={farmEditData.goals}
-                      onChange={(e) => updateFarmEditData("goals", e.target.value)}
-                      placeholder="What are your main farming goals?"
-                      rows={3}
-                    />
-                  </div>
+                  
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -322,18 +328,21 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
                     <Label className="text-sm font-medium text-muted-foreground">Experience</Label>
                     <p className="mt-1">{userData.experience}</p>
                   </div>
-                  <div>
-                    <Label className="text-sm font-medium text-muted-foreground">Location</Label>
-                    <p className="mt-1">{userData.location}</p>
-                  </div>
                   <div className="md:col-span-2">
                     <Label className="text-sm font-medium text-muted-foreground">Main Crops</Label>
-                    <p className="mt-1">{userData.mainCrops}</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {Array.isArray(userData.mainCrops) && userData.mainCrops.length > 0 ? (
+                        userData.mainCrops.map(c => (
+                          <span key={c} className="px-2 py-1 rounded-full text-xs bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            {c}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground">No crops specified</p>
+                      )}
+                    </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <Label className="text-sm font-medium text-muted-foreground">Goals</Label>
-                    <p className="mt-1 text-sm leading-relaxed">{userData.goals}</p>
-                  </div>
+                  
                 </div>
               )}
             </CardContent>
@@ -395,11 +404,27 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
               <p className="text-sm text-muted-foreground">
                 This will permanently delete all your chat history, preferences, and profile data.
               </p>
-              <Button variant="destructive" onClick={() => {
+              <Button variant="destructive" onClick={async () => {
                 // Clear all data functionality
                 if (window.confirm("Are you sure? This action cannot be undone.")) {
-                  localStorage.clear()
-                  window.location.reload()
+                  try {
+                    console.log('Starting data clearance...');
+                    
+                    // Clear IndexedDB data
+                    await chatDB.clearAllThreads()
+                    await chatDB.clearSuggestedQueries()
+                    console.log('IndexedDB cleared successfully')
+                    
+                    // Clear localStorage
+                    localStorage.clear()
+                    console.log('localStorage cleared successfully')
+                    
+                    // Reload page
+                    window.location.reload()
+                  } catch (error) {
+                    console.error('Error clearing data:', error)
+                    alert('Error clearing some data. Please try again.')
+                  }
                 }
               }} className="w-full max-w-xs">
                 <Trash2 className="w-4 h-4 mr-2" />

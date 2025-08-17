@@ -14,14 +14,13 @@ interface ChatInputProps {
   suggestedQueries: string[]
   onSuggestedQueryClick: (query: string) => void
   userData?: {
-    mainCrops?: string
+    mainCrops?: string | string[]
     name?: string
     location?: string
     language?: string
     farmType?: string
     experience?: string
     farmSize?: string
-    goals?: string
     email?: string
     phone?: string
     avatar?: string
@@ -85,7 +84,8 @@ export function ChatInput({
 
   const getPlaceholderText = () => {
     if (userData?.mainCrops) {
-      return t("askAboutSpecificCrops", { crops: userData.mainCrops })
+      const crops = Array.isArray(userData.mainCrops) ? userData.mainCrops.join(', ') : userData.mainCrops
+      return t("askAboutSpecificCrops", { crops })
     }
     return t("askAboutCrops")
   }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapPin, Globe, Check, Loader2 } from "lucide-react"
 import { useLocationDetection } from "@/hooks/use-location"
+import { useSelectedLocation } from "@/hooks/use-selected-location"
 
 interface LocationLanguageData {
   location: string
@@ -24,8 +25,9 @@ interface LocationLanguageSetupProps {
 }
 
 export function LocationLanguageSetup({ initialData, onSave, onCancel }: LocationLanguageSetupProps) {
+  const { address } = useSelectedLocation()
   const [data, setData] = useState<LocationLanguageData>({
-    location: initialData?.location || "",
+    location: initialData?.location || address || "",
     language: initialData?.language || "English",
     timezone: initialData?.timezone || "",
     weatherUnit: initialData?.weatherUnit || "metric",
@@ -37,8 +39,16 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
   const { detectLocation, error: detectError, isDetecting } = useLocationDetection()
 
   const updateData = (field: keyof LocationLanguageData, value: string) => {
+    if (field === 'location') return; // location is derived
     setData((prev) => ({ ...prev, [field]: value }))
   }
+
+  // Keep derived location in sync
+  useEffect(() => {
+    if (address && address !== data.location) {
+      setData(prev => ({ ...prev, location: address }))
+    }
+  }, [address, data.location])
 
   const handleAutoDetect = useCallback(async () => {
     setIsDetectingLocation(true)
@@ -106,30 +116,8 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="location">Farm Location</Label>
-            <div className="flex gap-2">
-              <Input
-                id="location"
-                placeholder="City, State/Province, Country"
-                value={data.location}
-                onChange={(e) => updateData("location", e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                variant="outline"
-                onClick={handleAutoDetect}
-                disabled={isDetectingLocation || isDetecting}
-                className="flex-shrink-0 bg-transparent"
-              >
-                {isDetectingLocation || isDetecting ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <MapPin className="w-4 h-4" />
-                )}
-                {isDetectingLocation || isDetecting ? "Detecting..." : "Auto-detect"}
-              </Button>
-            </div>
-            {detectError && <p className="text-xs text-red-600 mt-1" role="alert">{detectError}</p>}
+            <Label>Farm Location (managed via map picker)</Label>
+            <Input disabled value={data.location} className="flex-1" />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

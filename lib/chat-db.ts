@@ -176,13 +176,15 @@ class ChatDatabase {
   }
 
   async clearAllThreads(): Promise<void> {
-    const db = await this.ensureDB();
+    await this.initPromise;
+    
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([THREADS_STORE], 'readwrite');
+      const transaction = this.db!.transaction([THREADS_STORE], 'readwrite');
       const store = transaction.objectStore(THREADS_STORE);
       const request = store.clear();
 
       request.onsuccess = () => {
+        console.log('Successfully cleared all threads from IndexedDB');
         resolve();
       };
 
@@ -293,9 +295,10 @@ class ChatDatabase {
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([SUGGESTED_QUERIES_STORE], 'readwrite');
       const store = transaction.objectStore(SUGGESTED_QUERIES_STORE);
-      const request = store.delete('global');
+      const request = store.clear();
       
       request.onsuccess = () => {
+        console.log('Successfully cleared all suggested queries from IndexedDB');
         resolve();
       };
       

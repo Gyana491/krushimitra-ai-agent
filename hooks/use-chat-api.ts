@@ -83,20 +83,55 @@ export const useChatAPI = () => {
         }
       });
 
-      // Retrieve lightweight user context (same key used in page.tsx or fallback)
+      // Retrieve lightweight user context and selected location data
       let userContext: any = undefined;
       try {
         if (typeof window !== 'undefined') {
-          const raw = window.localStorage.getItem('cropwise-user-data') || window.localStorage.getItem('userProfileData');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            // Whitelist only fields we care about
-            const { name, location, language, farmType, experience, mainCrops, farmSize, goals } = parsed;
-            userContext = { name, location, language, farmType, experience, mainCrops, farmSize, goals };
+          // Base user profile
+            const raw = window.localStorage.getItem('cropwise-user-data') || window.localStorage.getItem('userProfileData');
+            if (raw) {
+              const parsed = JSON.parse(raw);
+              const { name, language, farmType, experience, mainCrops, farmSize } = parsed;
+              let mainCropsArray: string[] | undefined = undefined;
+              if (Array.isArray(mainCrops)) {
+                mainCropsArray = mainCrops.map((c: any) => String(c));
+              } else if (typeof mainCrops === 'string') {
+                mainCropsArray = mainCrops.split(/[;,]/).map(s=>s.trim()).filter(Boolean);
+              }
+              userContext = { name, language, farmType, experience, mainCrops: mainCropsArray, mainCropsJoined: mainCropsArray?.join(', '), farmSize };
+            }
+          // Selected location (authoritative source)
+          const locRaw = window.localStorage.getItem('cropwise-selected-location');
+          if (locRaw) {
+            try {
+              const loc = JSON.parse(locRaw);
+              if (loc) {
+                const locationAddress = loc.address || [loc.cityName, loc.stateName].filter(Boolean).join(', ');
+                // Normalize area size acres string if not stored
+                let areaAcres = loc.areaSizeAcres;
+                if (!areaAcres && typeof loc.areaSize === 'number') {
+                  const acresVal = loc.areaSize * 0.000247105;
+                  areaAcres = `${acresVal.toFixed(2)} acres`;
+                }
+                userContext = {
+                  ...(userContext || {}),
+                  // Canonical fields
+                  address: locationAddress,
+                  cityName: loc.cityName,
+                  stateName: loc.stateName,
+                  areaSizeAcres: areaAcres,
+                  // Backwards compatible / extended metadata
+                  locationAddress,
+                  latitude: loc.lat,
+                  longitude: loc.lng,
+                  areaSizeSqMeters: loc.areaSize
+                };
+              }
+            } catch {}
           }
         }
       } catch (e) {
-        console.warn('Unable to load user context for chat request', e);
+        console.warn('Unable to load user context / location for chat request', e);
       }
 
       const requestBody = {

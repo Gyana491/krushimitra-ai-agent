@@ -121,6 +121,28 @@ export const useSuggestedQueries = (currentThreadId: string) => {
   console.log('Generating suggested queries (global cache)');
   lastContextHash.current = contextHash;
 
+      // Attach location context from selected location storage
+      let locationContext: any = undefined;
+      try {
+        const locRaw = localStorage.getItem('cropwise-selected-location');
+        if (locRaw) {
+          const loc = JSON.parse(locRaw);
+          if (loc) {
+            locationContext = {
+              address: loc.address || [loc.cityName, loc.stateName].filter(Boolean).join(', '),
+              cityName: loc.cityName,
+              stateName: loc.stateName,
+              areaSizeAcres: loc.areaSizeAcres || (typeof loc.areaSize === 'number' ? `${(loc.areaSize * 0.000247105).toFixed(2)} acres` : undefined),
+              // Extended metadata
+              locationAddress: loc.address || [loc.cityName, loc.stateName].filter(Boolean).join(', '),
+              latitude: loc.lat,
+              longitude: loc.lng,
+              areaSizeSqMeters: loc.areaSize
+            };
+          }
+        }
+      } catch {}
+
       const response = await fetch('/api/suggested-queries', {
         method: 'POST',
         headers: {
@@ -130,7 +152,8 @@ export const useSuggestedQueries = (currentThreadId: string) => {
           messages: messages.map(msg => ({
             role: msg.role,
             content: msg.content
-          }))
+          })),
+          ...(locationContext ? { locationContext } : {})
         }),
       });
 

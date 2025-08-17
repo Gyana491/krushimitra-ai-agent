@@ -15,16 +15,15 @@ import { SuggestedQueries } from "@/components/suggested-queries"
 import { useTranslation } from "@/hooks/use-translation"
 import { useChat } from "@/hooks/use-chat"
 import { useSuggestedQueries } from "@/hooks/use-suggested-queries"
+import { chatDB } from "@/lib/chat-db"
 
 interface UserData {
   name: string
-  location: string
   language: string
   farmType: string
   experience: string
-  mainCrops: string
+  mainCrops: string[]
   farmSize: string
-  goals: string
   email?: string
   phone?: string
   avatar?: string
@@ -36,10 +35,12 @@ interface UserData {
 
 export default function Home() {
   const [userData, setUserData] = useState<UserData | null>(null)
+  const [selectedLocation, setSelectedLocation] = useState<string>('')
   const { t } = useTranslation(userData?.language)
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const [initialSuggestedQueries, setInitialSuggestedQueries] = useState<string[]>([])
   
   // Use our custom chat hook
   const {
@@ -133,7 +134,11 @@ export default function Home() {
 
     if (savedUserData) {
       const parsedUserData = JSON.parse(savedUserData)
-      const enhancedUserData = {
+      // Migrate legacy mainCrops string -> array
+      if (parsedUserData.mainCrops && !Array.isArray(parsedUserData.mainCrops)) {
+        parsedUserData.mainCrops = String(parsedUserData.mainCrops).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean);
+      }
+      const enhancedUserData: UserData = {
         ...parsedUserData,
         email: parsedUserData.email || `${parsedUserData.name.toLowerCase().replace(" ", ".")}@example.com`,
         phone: parsedUserData.phone || "",
@@ -151,18 +156,64 @@ export default function Home() {
     }
   }, [])
 
-  const handleOnboardingComplete = (data: UserData) => {
-    const enhancedData = {
+  const handleOnboardingComplete = async (data: UserData) => {
+    const enhancedData: UserData = {
       ...data,
-      email: `${data.name.toLowerCase().replace(" ", ".")}@example.com`,
+      email: `${data.name.toLowerCase().replace(/\s+/g, ".")}@example.com`,
       phone: "",
       joinDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       totalChats: 0,
       diseasesIdentified: 0,
       achievements: ["Welcome to CropWise!"],
+      mainCrops: Array.isArray(data.mainCrops)
+        ? data.mainCrops as string[]
+        : (typeof (data as any).mainCrops === 'string'
+            ? ((data as any).mainCrops as string).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean)
+            : []),
     }
     setUserData(enhancedData)
     localStorage.setItem("cropwise-user-data", JSON.stringify(enhancedData))
+
+    // Try to read selected location for richer context
+    let locSummary = ''
+    try {
+      const rawLoc = localStorage.getItem('cropwise-selected-location')
+      if (rawLoc) {
+        const loc = JSON.parse(rawLoc)
+        if (loc?.cityName && loc?.stateName) locSummary = `${loc.cityName}, ${loc.stateName}`
+        else if (loc?.address) locSummary = loc.address
+      }
+    } catch {}
+
+    // Generate initial suggested queries based on user context (store directly in IndexedDB)
+    const buildFallback = (): string[] => {
+      const primaryCrop = enhancedData.mainCrops[0] || 'crop'
+      const experience = enhancedData.experience || 'beginner'
+      const queries: string[] = [
+        `Best current practices for ${primaryCrop} (${experience})?`,
+        locSummary ? `Upcoming weather risks for ${locSummary}?` : `How to prepare for upcoming weather?`,
+        `Soil or nutrient focus for ${primaryCrop} now?`,
+        `Early pest or disease signs to watch in ${primaryCrop}?`
+      ]
+      return queries.slice(0,4)
+    }
+    let initialQueries: string[] = buildFallback()
+    try {
+      const syntheticMessages = [{
+        role: 'user',
+        content: `User Profile\nName: ${enhancedData.name}\nLocation: ${locSummary || 'Unknown'}\nFarm Type: ${enhancedData.farmType || 'N/A'}\nExperience: ${enhancedData.experience || 'N/A'}\nMain Crops: ${enhancedData.mainCrops.join(', ') || 'None'}\nFarm Size: ${enhancedData.farmSize || 'N/A'}\n\nGenerate 3-4 short follow-up agricultural questions this farmer is likely to ask next. Return ONLY JSON array.`
+      }]
+      const resp = await fetch('/api/suggested-queries', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messages: syntheticMessages }) })
+      if (resp.ok) {
+        const dataResp = await resp.json()
+        if (Array.isArray(dataResp?.suggestedQueries) && dataResp.suggestedQueries.length) {
+          initialQueries = dataResp.suggestedQueries.slice(0,4)
+        }
+      }
+    } catch (e) { console.warn('AI onboarding suggestions failed, using fallback', e) }
+  // Store locally so UI can show immediately after onboarding
+  setInitialSuggestedQueries(initialQueries)
+  try { await chatDB.saveSuggestedQueries(initialQueries, 'onboarding') } catch (e) { console.warn('Failed saving onboarding suggestions to DB', e) }
     setIsOnboarding(false)
   }
 
@@ -174,6 +225,21 @@ export default function Home() {
     }
   }
 
+  // Derive location from stored selected location
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('cropwise-selected-location')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed?.cityName && parsed?.stateName) {
+          setSelectedLocation(`${parsed.cityName}, ${parsed.stateName}`)
+        } else if (parsed?.address) {
+          setSelectedLocation(parsed.address)
+        }
+      }
+    } catch {}
+  }, [currentView])
+
   const handleLocationLanguageSave = (data: { location: string; language: string }) => {
     localStorage.setItem('cropwise-language', data.language) // code
     // Map code -> full name via translations hook constant (lazy require to avoid circular import)
@@ -184,7 +250,7 @@ export default function Home() {
       if (map[data.language]) full = map[data.language]
     } catch {}
     if (userData) {
-      const updatedUserData = { ...userData, location: data.location, language: full }
+      const updatedUserData = { ...userData, language: full }
       setUserData(updatedUserData)
       localStorage.setItem('cropwise-user-data', JSON.stringify(updatedUserData))
     } else {
@@ -193,7 +259,6 @@ export default function Home() {
         if (raw) {
           const parsed = JSON.parse(raw)
           parsed.language = full
-          parsed.location = data.location
           localStorage.setItem('cropwise-user-data', JSON.stringify(parsed))
         }
       } catch {}
@@ -266,52 +331,9 @@ export default function Home() {
 
   // Function to get suggested queries - now using our AI-generated suggestions or fallback
   const getSuggestedQueries = () => {
-    // Prefer AI suggestions
-    if (suggestedQueries && suggestedQueries.length > 0) return suggestedQueries;
-
-    // Try localStorage (persisted per thread)
-    try {
-      const raw = localStorage.getItem('suggested-queries');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.queries?.length) return parsed.queries;
-      }
-    } catch {}
-
-    // Personalized static fallback
-    const crop = userData?.mainCrops || t('identifyCropDisease');
-    const loc = userData?.location || '';
-    const lang = userData?.language || 'en';
-
-    const base: string[] = [
-      `${crop} disease identification`,
-      loc ? `Weather advice for ${loc}` : t('weatherAdvice'),
-      `Fertilizer guidance for ${crop}`,
-      'Organic pest control',
-      'Soil health tips',
-    ];
-
-    // Light language tailoring (example: Hindi / Oriya replace some English words)
-    if (lang === 'hi') {
-      return [
-        `${crop} की बीमारी पहचान`,
-        loc ? `${loc} के मौसम की सलाह` : 'मौसम सलाह',
-        `${crop} के लिए खाद मार्गदर्शन`,
-        'जैविक कीट नियंत्रण',
-        'मिट्टी की सेहत सुझाव'
-      ];
-    }
-    if (lang === 'or') {
-      return [
-        `${crop} ରୋଗ ପରିଚୟ`,
-        loc ? `${loc} ପାଗ ପରାମର୍ଶ` : 'ପାଗ ପରାମର୍ଶ',
-        `${crop} ର ଖାଦ୍ୟ ସଳାହ`,
-        'ଜୈ୵ କୀଟ ନିୟନ୍ତ୍ରଣ',
-        'ମାଟି ସ୍ୱାସ୍ଥ୍ୟ ସୁପରିଶ'
-      ];
-    }
-
-    return base.slice(0,5);
+    if (suggestedQueries && suggestedQueries.length > 0) return suggestedQueries
+    if (initialSuggestedQueries.length > 0) return initialSuggestedQueries
+    return []
   }
 
   if (isOnboarding) {
@@ -361,7 +383,7 @@ export default function Home() {
           <>
             <div className="flex-1 overflow-y-auto space-y-4">
               <WeatherSection 
-                location={userData?.location || "Unknown Location"} 
+                location={selectedLocation || "Unknown Location"} 
               />
               {/* Suggested queries block on home */}
               <div className="px-4">
@@ -441,7 +463,7 @@ export default function Home() {
           <div className="flex-1 overflow-y-auto p-4">
             <LocationLanguageSetup
               initialData={userData ? { 
-                location: userData.location, 
+                location: selectedLocation, 
                 language: userData.language,
                 timezone: "UTC",
                 weatherUnit: "metric",

@@ -6,6 +6,10 @@ interface ChatMessage {
   id?: string;
 }
 
+// Always return between MIN and MAX suggestions
+const MIN_SUGGESTIONS = 3;
+const MAX_SUGGESTIONS = 4;
+
 // Simple in-memory rate limiting
 const requestCounts = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60000; // 1 minute
@@ -99,34 +103,89 @@ export async function POST(req: NextRequest) {
       .join('\n');
 
     // Create system prompt for generating suggested queries
-  const systemPrompt = `You are an agricultural assistant creating NEXT user follow-up questions (act like the farmer will ask them). From the recent conversation craft 3-4 short, distinct questions the farmer is likely to ask next. Requirements:
+    const systemPrompt = `You are an expert agricultural assistant that generates highly relevant follow-up questions for farmers based on their conversation context.
 
-1. Perspective: First-person (implicit) farmer intent – no explanations, just the question.
-2. Relevance: Build directly on the assistant's last guidance (go deeper, clarify, apply, quantify, prevent, or decide timing).
-3. Diversity: Cover different useful angles (e.g. risk prevention, timing, inputs, alternatives, post-harvest) – avoid near duplicates.
-4. Specificity: Reference crop / condition / location ONLY if clearly present; don't hallucinate.
-5. Language: Output in the same language/script as the MOST RECENT user message (detect Hindi / Odia / English automatically). If mixed, prefer the assistant reply language.
-6. Format: JSON array of strings only, e.g. ["QUESTION 1?", "QUESTION 2?", "QUESTION 3?"]
-7. Exclusions: Do NOT repeat an earlier user question verbatim. Do NOT include numbering, markdown, or extra text outside the JSON array.
+CORE PRINCIPLES:
+1. Generate questions that farmers would ACTUALLY ask next in their situation
+2. Focus on PRACTICAL, ACTIONABLE follow-ups that help farmers make decisions
+3. Consider the farming context: crop type, season, location, current problem, weather conditions
+4. Build on the assistant's last advice to go deeper into implementation
 
-Goal: Help the farmer advance the conversation efficiently with high-value next questions.
+QUESTION GENERATION STRATEGY:
+- IMPLEMENTATION: "How exactly do I do this?" "What materials do I need?" "When should I start?"
+- RISK PREVENTION: "What could go wrong?" "How do I prevent problems?" "What signs should I watch for?"
+- TIMING: "When is the best time?" "How long will this take?" "What's the deadline?"
+- ALTERNATIVES: "What if this doesn't work?" "Are there other options?" "What's cheaper/easier?"
+- QUANTIFICATION: "How much do I need?" "What's the cost?" "How many days/weeks?"
+- EVIDENCE: "How do I know it's working?" "What results should I expect?" "How do other farmers do this?"
 
-Return ONLY the JSON array.`;
+CONTEXT ANALYSIS:
+- Identify: Current crop, farming stage, location, weather concern, specific problem mentioned
+- Understand: What advice was just given, what the farmer is trying to achieve
+- Consider: Immediate next steps, potential complications, resource needs
+
+LANGUAGE RULES:
+- Use the SAME language as the farmer's last message
+- If conversation is mixed languages, match the most recent user message
+- Keep questions natural and conversational, like a farmer would actually ask
+- Use farming terminology appropriate to the region
+
+QUESTION QUALITY:
+- Make each question DISTINCT and serve a different purpose
+- Avoid generic questions - be specific to the farming situation
+- Focus on the farmer's immediate concerns and next decisions
+- Each question should help the farmer take concrete action
+
+OUTPUT FORMAT: Return ONLY a JSON array of 3-4 questions, nothing else.
+Example: ["How much fertilizer per acre?", "When do I apply it?", "What if it rains after application?"]`;
 
     // Prepare messages for Sarvam API
     const apiMessages = [
       { content: systemPrompt, role: 'system' },
-      { content: `Conversation so far:\n${conversationContext}\n\nGenerate ONLY a JSON array with 3-4 follow-up questions.`, role: 'user' }
+      { 
+        content: `CONVERSATION CONTEXT:
+${conversationContext}
+
+TASK: Analyze this farming conversation and generate 3-4 highly relevant follow-up questions that this farmer would naturally ask next.
+
+ANALYSIS CHECKLIST:
+- What crop/farming issue is being discussed?
+- What specific advice was just given by the assistant?
+- What would the farmer need to know to implement this advice?
+- What practical concerns or next steps would they have?
+- What evidence or validation would they want?
+
+Generate questions that help the farmer:
+1. Understand HOW to implement the advice
+2. Know WHEN to take action
+3. Prepare for potential PROBLEMS
+4. Understand the COSTS or RESOURCES needed
+
+Return ONLY the JSON array with 3-4 questions.`, 
+        role: 'user' 
+      }
     ];
 
-    // Call Sarvam AI API with retry logic
-  let response: Response | undefined;
+    // Utility: promise timeout
+    const fetchWithTimeout = async (url: string, opts: RequestInit & { timeout?: number }) => {
+      const { timeout = 12000, ...rest } = opts;
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeout);
+      try {
+        return await fetch(url, { ...rest, signal: controller.signal });
+      } finally {
+        clearTimeout(t);
+      }
+    };
+
+    // Call Sarvam AI API with retry logic + timeout
+    let response: Response | undefined;
     let attempt = 0;
     const maxRetries = 2;
     
     while (attempt <= maxRetries) {
       try {
-        response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
+        response = await fetchWithTimeout('https://api.sarvam.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'api-subscription-key': apiKey,
@@ -135,7 +194,8 @@ Return ONLY the JSON array.`;
           body: JSON.stringify({
             messages: apiMessages,
             model: 'sarvam-m'
-          })
+          }),
+          timeout: 10000 + attempt * 3000
         });
         if (response.ok) {
           break; // Success, exit retry loop
@@ -170,7 +230,7 @@ Return ONLY the JSON array.`;
       }
     }
 
-    // Heuristic fallback function if upstream fails
+    // Enhanced heuristic fallback function with better context analysis
     const buildHeuristic = (): string[] => {
       try {
         const lastUser = [...messages].reverse().find(m => m.role === 'user');
@@ -187,32 +247,49 @@ Return ONLY the JSON array.`;
           if (!queries.includes(q) && queries.length < 4) queries.push(q);
         };
 
-        const cropMatch = raw.match(/(pyaaj|प्याज|onion)/i);
+        // Extract farming context
+        const cropMatch = raw.match(/(pyaaj|प्याज|onion|tomato|टमाटर|wheat|गेहूं|rice|धान|potato|आलू)/i);
         const cropRef = cropMatch ? cropMatch[0] : '';
+        
+        // Check for specific farming activities mentioned
+        const hasWeather = lower.includes('मौसम') || lower.includes('weather') || lower.includes('rain') || lower.includes('बारिश');
+        const hasPest = lower.includes('pest') || lower.includes('disease') || lower.includes('रोग') || lower.includes('कीट');
+        const hasPrice = lower.includes('price') || lower.includes('मंडी') || lower.includes('sell') || lower.includes('बेच');
+        const hasFertilizer = lower.includes('fertilizer') || lower.includes('खाद') || lower.includes('उर्वरक');
 
         if (isHindi) {
-          if (lower.includes('मौसम') || lower.includes('weather')) add('अगले 3 दिनों के मौसम को देखते हुए अभी क्या तैयारी करूँ?');
-          if (cropRef) add(`${cropRef.includes('प्याज') ? 'प्याज' : 'फसल'} में रोग से बचाव के लिए अगला कदम क्या है?`);
-          if (lower.includes('जल निकासी') || lower.includes('drain')) add('जल निकासी बेहतर करने का सबसे त्वरित समाधान क्या है?');
-          add('अगर बारिश जारी रही तो नुकसान कम कैसे करूँ?');
+          if (hasWeather) add('मौसम के हिसाब से अभी सबसे जरूरी काम कौन सा है?');
+          if (hasPest && cropRef) add(`${cropRef} में रोग की पहचान कैसे करूं?`);
+          if (hasPrice) add('अभी बेचना ठीक है या कुछ दिन और इंतजार करूं?');
+          if (hasFertilizer) add('यह खाद कितनी मात्रा में डालनी चाहिए?');
+          if (cropRef && !hasPest) add(`${cropRef} की देखभाल में अभी कौन सी गलती न करूं?`);
+          add('इस सलाह को फॉलो करने में कितना खर्च आएगा?');
+          add('कितने दिन में नतीजा दिखने लगेगा?');
         } else if (isOdia) {
-          if (lower.includes('ପାଗ') || lower.includes('weather')) add('ଆସନ୍ତା ୩ ଦିନ ପାଗ ଦେଖି କଣ ପ୍ରସ୍ତୁତି କରିବି?');
-          if (cropRef) add('ପିଆଜ ରୋଗ ରୋକଥାମ ପାଇଁ ବର୍ତ୍ତମାନ କଣ କରିବି?');
-          if (lower.includes('drain') || /ନିସ୍ସରଣ/.test(raw)) add('ଜଳ ନିସ୍ସରଣ ଶୀଘ୍ର କେମିତି ସୁଧାରିବି?');
-          add('ଲମ୍ବା ବର୍ଷାର ପ୍ରଭାବ କେମିତି କମେଇବି?');
+          if (hasWeather) add('ପାଗ ଅନୁସାରେ ବର୍ତ୍ତମାନ ସବୁଠୁ ଜରୁରୀ କାମ କଣ?');
+          if (hasPest && cropRef) add('ଫସଲରେ ରୋଗର ଚିହ୍ନ କେମିତି ଚିହ୍ନିବି?');
+          if (hasPrice) add('ବର୍ତ୍ତମାନ ବିକିବା ଭଲ ନା ଆଉ କିଛି ଦିନ ଅପେକ୍ଷା କରିବି?');
+          if (hasFertilizer) add('ଏହି ସାର କେତେ ମାତ୍ରାରେ ଦେବି?');
+          add('ଏହି ପରାମର୍ଶ ଫଲୋ କରିବାକୁ କେତେ ଖର୍ଚ୍ଚ ହେବ?');
+          add('କେତେ ଦିନରେ ଫଳାଫଳ ଦେଖିବାକୁ ମିଳିବ?');
         } else {
-          if (lower.includes('weather') || lower.includes('forecast')) add('Given the next 3 days forecast what should I prepare first?');
-            if (cropRef) add(`How do I prevent disease pressure in my ${cropRef.toLowerCase().includes('onion') ? 'onion' : 'crop'} right now?`);
-          if (lower.includes('drain')) add('What is the quickest low-cost way to improve drainage?');
-          add('If rain continues how do I reduce losses?');
+          if (hasWeather) add('What\'s the most urgent task based on current weather?');
+          if (hasPest && cropRef) add(`How do I identify early signs of disease in ${cropRef}?`);
+          if (hasPrice) add('Should I sell now or wait for better prices?');
+          if (hasFertilizer) add('What\'s the exact application rate for this fertilizer?');
+          if (cropRef && !hasPest) add(`What mistakes should I avoid with ${cropRef} right now?`);
+          add('How much will it cost to implement this advice?');
+          add('How long before I see results?');
+          add('What if the weather changes suddenly?');
         }
 
         return queries.slice(0,4);
       } catch {
         return [
-          'अगला सवाल क्या पूछूँ?',
-          'फसल देखभाल के लिए अभी कौन सा कदम प्राथमिक है?',
-          'मौसम जोखिम कम करने के उपाय क्या हैं?'
+          'How do I implement this step by step?',
+          'What materials do I need for this?',
+          'When is the best time to start?',
+          'How much will this cost me?'
         ];
       }
     };
@@ -235,11 +312,22 @@ Return ONLY the JSON array.`;
       }, { status: 200 });
     }
 
-    const data = await response.json();
-    const generatedContent = data.choices?.[0]?.message?.content;
+    let generatedContent: string | undefined;
+    try {
+      const data = await response.json();
+      generatedContent = data.choices?.[0]?.message?.content;
+      if (!generatedContent && Array.isArray(data.choices)) {
+        // Try alternative shapes
+        generatedContent = data.choices.map((c: any) => c?.message?.content).filter(Boolean).join('\n');
+      }
+    } catch (e) {
+      console.warn('Failed parsing primary response JSON, using fallback heuristic', e);
+    }
 
     if (!generatedContent) {
-      throw new Error('No content generated from Sarvam AI');
+      console.warn('No content generated from Sarvam AI, switching to heuristic');
+      const fallbackQueries = buildHeuristic();
+      return NextResponse.json({ suggestedQueries: fallbackQueries, success: true, fallback: true, reason: 'empty_upstream' });
     }
 
     // Parse the JSON response
@@ -258,29 +346,78 @@ Return ONLY the JSON array.`;
           throw new Error('No JSON array found');
         }
       }
-  } catch {
-      // Heuristic fallback
+    } catch {
+      // Enhanced heuristic fallback
       suggestedQueries = generatedContent
         .split(/\n|\r/)
         .map((l: string) => l.trim())
-        .filter((l: string) => l.length > 0 && (l.endsWith('?') || /\?$/.test(l)))
+        .filter((l: string) => {
+          // More intelligent filtering for farming questions
+          return l.length > 0 && 
+                 (l.endsWith('?') || /\?$/.test(l)) &&
+                 !l.toLowerCase().includes('question') &&
+                 !l.match(/^[0-9]+\./) && // Remove numbered lists
+                 l.length > 10; // Avoid too short questions
+        })
         .slice(0, 4);
+
+      // If still no good questions, use the enhanced heuristic
+      if (suggestedQueries.length === 0) {
+        suggestedQueries = buildHeuristic();
+      }
     }
 
-    // Validate and clean queries
-    const validQueries = suggestedQueries
-      .filter((query: string) => query && query.trim().length > 0)
-      .slice(0, 4);
+    // Validate and clean queries with better filtering
+    // Ensure minimum number of quality queries
+    const ensureMinimum = (current: string[]): string[] => {
+      if (current.length >= MIN_SUGGESTIONS) return current.slice(0, MAX_SUGGESTIONS);
+      // Use heuristic to supplement
+      const supplemental = buildHeuristic();
+      const merged: string[] = [];
+      const seen = new Set<string>();
+      [...current, ...supplemental].forEach(q => {
+        const cleaned = q.trim();
+        if (!seen.has(cleaned) && cleaned.length >= 5) {
+          seen.add(cleaned);
+          merged.push(cleaned);
+        }
+      });
+      return merged.slice(0, MAX_SUGGESTIONS);
+    };
 
-    // Cache the results
-    suggestionCache.set(cacheKey, {
-      queries: validQueries,
-      timestamp: Date.now()
-    });
+    const validQueries = ensureMinimum(
+      suggestedQueries
+        .filter((query: string) => {
+          if (!query || query.trim().length < 5) return false;
+          const cleaned = query.trim();
+          // Remove generic or low-quality questions
+          const lowQuality = [
+            'what else', 'anything else', 'other questions', 'more info',
+            'tell me more', 'क्या और', 'और क्या', 'अन्य प्रश्न'
+          ];
+          return !lowQuality.some(lq => cleaned.toLowerCase().includes(lq));
+        })
+        .map((query: string) => {
+          // Clean up formatting
+          return query.trim().replace(/^[0-9]+\.?\s*/, '').replace(/^[-•]\s*/, '');
+        })
+        .slice(0, MAX_SUGGESTIONS)
+    );
+
+    // Cache only if we have at least the minimum number
+    if (validQueries.length >= MIN_SUGGESTIONS) {
+      suggestionCache.set(cacheKey, {
+        queries: validQueries,
+        timestamp: Date.now()
+      });
+    }
 
     return NextResponse.json({ 
       suggestedQueries: validQueries,
-      success: true 
+      success: true,
+      count: validQueries.length,
+      fromCache: false,
+      reliability: validQueries.length >= MIN_SUGGESTIONS ? 'stable' : 'degraded'
     });
 
   } catch (error) {

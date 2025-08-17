@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { MapPin, X, Loader2, Check } from "lucide-react"
-import GoogleLocationPicker from "./google-location-picker"
+import GoogleLocationPicker, { SelectedLocationData } from "./google-location-picker"
 
 interface ChangeLocationPopupProps {
   open: boolean
@@ -24,7 +24,7 @@ export const ChangeLocationPopup: React.FC<ChangeLocationPopupProps> = ({
   const [isSaving, setIsSaving] = useState(false)
 
   // Update location state when picker changes
-  const handleLocationChange = useCallback((data: { address: string; lat: number; lng: number; bounds?: { north: number; south: number; east: number; west: number } }) => {
+  const handleLocationChange = useCallback((data: SelectedLocationData) => {
     setLocation(data.address)
     setHasLocationData(true)
   }, [])
@@ -87,10 +87,8 @@ export const ChangeLocationPopup: React.FC<ChangeLocationPopupProps> = ({
           </CardHeader>
           <CardContent className="space-y-4">
             <GoogleLocationPicker
-              apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""}
               value={location}
               onChange={handleLocationChange}
-              localStorageKey="cropwise-selected-location"
             />
 
             {/* Timezone & unit selectors removed per requirements */}
