@@ -5,7 +5,14 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin } from 'lucide-react'
 
-declare const google: any
+// Minimal Google Maps type surface (avoid pulling full @types/google.maps)
+interface MinimalGeocoderResult {
+  formatted_address: string;
+  address_components?: Array<{ long_name: string; short_name: string; types: string[] }>;
+}
+type GeocodeStatus = 'OK' | string;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+declare const google: any; // Runtime provided by script
 
 export interface SelectedLocationData { address: string; latitude: number; longitude: number; cityName?: string; stateName?: string; country?: string }
 interface GoogleLocationPickerProps { value?: string; onChange: (loc: SelectedLocationData) => void; placeholder?: string; className?: string; autoSaveToLocalStorage?: boolean }
@@ -36,7 +43,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
   useEffect(() => {
     if (!scriptLoaded || !inputRef.current || typeof google === 'undefined') return
     try {
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, { 
+  const autocomplete = new google.maps.places.Autocomplete(inputRef.current, { 
         types: ['geocode'], 
         fields: ['formatted_address', 'geometry', 'address_components', 'place_id']
       })
@@ -120,12 +127,12 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
           // Try to get address using Google Maps Geocoding if available
           if (scriptLoaded && typeof google !== 'undefined') {
             const geocoder = new google.maps.Geocoder()
-            const result = await new Promise<any[]>((resolve, reject) => {
+        const result = await new Promise<MinimalGeocoderResult[]>((resolve, reject) => {
               geocoder.geocode(
                 { location: { lat: latitude, lng: longitude } },
-                (results: any[], status: any) => {
+          (results: MinimalGeocoderResult[] | null, status: GeocodeStatus) => {
                   if (status === 'OK' && results?.[0]) {
-                    resolve(results)
+                      resolve(results)
                   } else {
                     reject(new Error('Geocoding failed'))
                   }
@@ -223,7 +230,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
           </Button>
         </div>
         <div className="text-xs text-muted-foreground hidden sm:block">
-          Click "Autodetect" to use your current location or search for a location above
+          Click &quot;Autodetect&quot; to use your current location or search for a location above
         </div>
       </div>
       {!scriptLoaded && !error && <p className="text-xs text-muted-foreground mt-1">Loading map services...</p>}

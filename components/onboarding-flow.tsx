@@ -54,7 +54,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
     Odia: "or",
   }
 
-  const updateData = (field: keyof OnboardingData, value: any) => {
+  const updateData = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) => {
     setData((prev) => ({ ...prev, [field]: value }))
     if (field === "language") {
       const languageCode = languageMap[value] || "en"
@@ -230,7 +230,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             <CropSelector
               value={data.mainCrops}
               onChange={(crops) => updateData('mainCrops', crops)}
-              translate={(key: any) => t(key as any)}
+              translate={(key: string) => t(key)}
             />
             {data.mainCrops.length === 0 && (
               <p className="text-xs text-muted-foreground">{t('onboarding.experience.cropsPlaceholder')}</p>

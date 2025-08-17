@@ -6,13 +6,38 @@ interface ChatMessage {
   id?: string;
 }
 
+interface UserProfile {
+  name?: string;
+  language?: string;
+  experience?: string;
+  farmType?: string;
+  farmSize?: string;
+  mainCrops?: string[];
+  mainCropsJoined?: string;
+}
+
+interface LocationContext {
+  address?: string;
+  cityName?: string;
+  stateName?: string;
+  areaSizeAcres?: string;
+  latitude?: number;
+  longitude?: number;
+}
+
+interface SuggestedQueriesRequestBody {
+  messages: ChatMessage[];
+  userProfile?: UserProfile;
+  locationContext?: LocationContext;
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { messages, userProfile, locationContext } = await req.json();
+  const { messages, userProfile, locationContext } = (await req.json()) as Partial<SuggestedQueriesRequestBody>;
 
     console.log('=== SUGGESTED QUERIES API START ===');
     console.log('Received messages count:', messages?.length);
-    console.log('Messages payload:', messages?.map((m: any) => ({ role: m.role, contentLength: m.content?.length })));
+  console.log('Messages payload:', messages?.map((m: ChatMessage) => ({ role: m.role, contentLength: typeof m.content === 'string' ? m.content.length : Array.isArray(m.content) ? m.content.length : 0 })));
     console.log('User profile available:', !!userProfile);
     if (userProfile) {
       console.log('User context:', {
@@ -286,9 +311,9 @@ Example: ["কি সার দেব?", "কখন রোপণ করব?", "�
       // Quality validation and cleanup
       if (parsedQueries && Array.isArray(parsedQueries)) {
         suggestedQueries = parsedQueries
-          .filter((q: any) => typeof q === 'string' && q.trim().length > 5)
-          .map((q: string) => q.trim())
-          .filter((q: string) => q.includes('?') || q.includes('？'))
+          .filter((q: unknown): q is string => typeof q === 'string' && q.trim().length > 5)
+          .map(q => q.trim())
+          .filter(q => q.includes('?') || q.includes('？'))
           .slice(0, 4); // Ensure max 4 questions
         
         console.log('Final validated queries:', suggestedQueries.length);

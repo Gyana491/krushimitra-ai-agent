@@ -48,7 +48,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
     if (typeof mc === 'string') return mc.split(/[;,]/).map(c => c.trim()).filter(Boolean);
     return [];
   };
-  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops as any);
+  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops);
 
   const [farmEditData, setFarmEditData] = useState({
     farmType: userData.farmType,
@@ -84,8 +84,8 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
     setFarmEditData({
       farmType: userData.farmType,
       farmSize: userData.farmSize,
-      experience: userData.experience,
-  mainCrops: normalizeCrops(userData.mainCrops as any),
+    experience: userData.experience,
+  mainCrops: normalizeCrops(userData.mainCrops),
       
     })
     setIsFarmEditing(false)

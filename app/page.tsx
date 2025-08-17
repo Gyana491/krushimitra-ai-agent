@@ -16,7 +16,7 @@ import { useTranslation } from "@/hooks/use-translation"
 import { useChat } from "@/hooks/use-chat"
 import { useSuggestedQueries } from "@/hooks/use-suggested-queries"
 import { useGlobalSuggestedQueries } from "@/hooks/use-global-suggested-queries"
-import { chatDB } from "@/lib/chat-db"
+// chatDB import removed as currently unused
 
 interface UserData {
   name: string
@@ -41,7 +41,8 @@ export default function Home() {
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
-  const [initialSuggestedQueries, setInitialSuggestedQueries] = useState<string[]>([])
+  // Initial queries placeholder retained for future extension
+  const [initialSuggestedQueries] = useState<string[]>([])
   
   // Use our custom chat hook
   const {
@@ -180,8 +181,8 @@ export default function Home() {
       achievements: ["Welcome to CropWise!"],
       mainCrops: Array.isArray(data.mainCrops)
         ? data.mainCrops as string[]
-        : (typeof (data as any).mainCrops === 'string'
-            ? ((data as any).mainCrops as string).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean)
+    : (typeof (data as unknown as { mainCrops?: unknown }).mainCrops === 'string'
+      ? String((data as unknown as { mainCrops?: string }).mainCrops).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean)
             : []),
     }
     setUserData(enhancedData)
