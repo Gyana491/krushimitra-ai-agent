@@ -291,6 +291,8 @@ export default function Home() {
     
     // Unlink/clear the current thread to start fresh
     clearCurrentThread()
+
+    regenerateGlobalQueries();
     
     // Clear any selected images
     clearImages()
