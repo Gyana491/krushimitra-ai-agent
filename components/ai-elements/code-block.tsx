@@ -37,12 +37,12 @@ export const CodeBlock = ({
   <CodeBlockContext.Provider value={{ code }}>
     <div
       className={cn(
-        'relative w-full max-w-full overflow-hidden rounded-md border bg-background text-foreground',
+        'relative w-full max-w-full overflow-hidden rounded-md border bg-background text-foreground min-w-0',
         className,
       )}
       {...props}
     >
-      <div className="relative overflow-hidden">
+      <div className="relative overflow-hidden min-w-0">
         <SyntaxHighlighter
           language={language}
           style={oneLight}
@@ -55,6 +55,8 @@ export const CodeBlock = ({
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
+            maxWidth: '100%',
+            minWidth: 0,
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
@@ -64,14 +66,16 @@ export const CodeBlock = ({
             fontSize: '0.75rem',
           }}
           codeTagProps={{
-            className: 'font-mono text-xs break-words',
+            className: 'font-mono text-xs break-words min-w-0',
             style: {
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               overflowWrap: 'break-word',
+              maxWidth: '100%',
+              minWidth: 0,
             },
           }}
-          className="dark:hidden overflow-hidden max-w-full"
+          className="dark:hidden overflow-hidden max-w-full min-w-0"
           wrapLines={true}
           wrapLongLines={true}
         >
@@ -89,6 +93,8 @@ export const CodeBlock = ({
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-word',
             overflowWrap: 'break-word',
+            maxWidth: '100%',
+            minWidth: 0,
           }}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
@@ -98,14 +104,16 @@ export const CodeBlock = ({
             fontSize: '0.75rem',
           }}
           codeTagProps={{
-            className: 'font-mono text-xs break-words',
+            className: 'font-mono text-xs break-words min-w-0',
             style: {
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
               overflowWrap: 'break-word',
+              maxWidth: '100%',
+              minWidth: 0,
             },
           }}
-          className="hidden dark:block overflow-hidden max-w-full"
+          className="hidden dark:block overflow-hidden max-w-full min-w-0"
           wrapLines={true}
           wrapLongLines={true}
         >

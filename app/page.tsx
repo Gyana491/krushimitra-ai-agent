@@ -58,6 +58,7 @@ export default function Home() {
     createNewThread,
     switchToThread,
     deleteThread,
+    clearCurrentThread,
     
     // Image handling
     selectedImages,
@@ -237,6 +238,17 @@ export default function Home() {
     clearImages()
   }
 
+  const handleBackToHome = () => {
+    // Set view to home
+    setCurrentView("home")
+    
+    // Unlink/clear the current thread to start fresh
+    clearCurrentThread()
+    
+    // Clear any selected images
+    clearImages()
+  }
+
   // Simple refresh function
   const handleRefreshSuggestions = () => {
     if (messages.length >= 2 && currentThreadId) {
@@ -312,7 +324,7 @@ export default function Home() {
         onMenuClick={() => setIsSidebarOpen(true)}
         onNewChatClick={handleResetChat}
         showBackButton={currentView !== "home"}
-        onBackClick={() => setCurrentView("home")}
+        onBackClick={handleBackToHome}
       />      {/* Conversation Sidebar */}
       <ConversationSidebar
         isOpen={isSidebarOpen}

@@ -139,7 +139,7 @@ function ToolCallDisplay({ toolCalls }: { toolCalls: DisplayToolCall[] }) {
                 {toolCall.status === 'completed' && toolCall.result && typeof toolCall.result === 'object' && (
                   <details className="mt-1 group">
                     <summary className="cursor-pointer text-[10px] text-emerald-600 dark:text-emerald-400 underline decoration-dotted">Details</summary>
-                    <pre className="mt-1 max-h-40 overflow-auto bg-gray-50 dark:bg-gray-900 p-2 rounded text-[10px] leading-tight whitespace-pre-wrap">{String(JSON.stringify(toolCall.result, null, 2))}</pre>
+                    <pre className="mt-1 max-h-40 overflow-auto bg-gray-50 dark:bg-gray-900 p-2 rounded text-[10px] leading-tight whitespace-pre-wrap break-words max-w-full">{String(JSON.stringify(toolCall.result, null, 2))}</pre>
                   </details>
                 )}
               </Card>
@@ -245,6 +245,7 @@ export function EnhancedChatMessages({
                 "flex gap-2",
                 "max-w-[85%] sm:max-w-[80%]",
                 message.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto",
+                "break-words overflow-hidden"
               )}
             >
               <Avatar className="h-8 w-8 flex-shrink-0">

@@ -124,6 +124,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             "flex gap-2",
             "max-w-[85%] sm:max-w-[80%]",
             message.sender === "user" ? "ml-auto flex-row-reverse" : "mr-auto",
+            "break-words overflow-hidden",
           )}
         >
           <Avatar className="h-8 w-8 flex-shrink-0">
@@ -139,10 +140,10 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             </AvatarFallback>
           </Avatar>
 
-          <div className={cn("flex flex-col gap-1", message.sender === "user" ? "items-end" : "items-start")}>
+          <div className={cn("flex flex-col gap-1 min-w-0 max-w-full", message.sender === "user" ? "items-end" : "items-start")}>
             <Card
               className={cn(
-                "p-3",
+                "p-3 break-words overflow-hidden",
                 message.type === "voice" ? "w-fit min-w-[280px]" : "max-w-full",
                 message.sender === "user" ? "bg-primary text-primary-foreground" : "bg-card",
               )}
