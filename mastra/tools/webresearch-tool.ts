@@ -182,8 +182,28 @@ export const webResearch = createTool({
     const parsed = GeminiResponseSchema.safeParse(raw);
     const text = parsed.success ? extractPrimaryText(parsed.data) : null;
 
+    // Extract URLs and titles from groundingChunks if available
+    let urls: Array<{ uri: string; title: string }> = [];
+    try {
+      const candidates = raw?.candidates ?? [];
+      if (candidates.length > 0) {
+        const groundingChunks = candidates[0]?.groundingMetadata?.groundingChunks ?? [];
+        urls = groundingChunks
+          .map((chunk: any) => {
+            if (chunk?.web?.uri && chunk?.web?.title) {
+              return { uri: chunk.web.uri, title: chunk.web.title };
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+    } catch (e) {
+      // fail silently, urls will be empty
+    }
+
     return {
-      text
+      text,
+      urls,
     };
   },
 });
