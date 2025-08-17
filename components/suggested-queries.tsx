@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Skeleton } from './ui/skeleton';
+// import { Skeleton } from './ui/skeleton'; // Not currently used
 import { RefreshCw, MessageSquare, Sparkles } from 'lucide-react';
 
 interface SuggestedQueriesProps {
@@ -16,8 +16,8 @@ interface SuggestedQueriesProps {
 
 export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
   queries,
-  isLoading,
-  error,
+  // isLoading, // Not currently used but kept for future loading states
+  // error, // Not currently used but kept for future error handling
   onQuerySelect,
   onRefresh,
   className = '',

@@ -212,7 +212,7 @@ export function EnhancedChatMessages({
         scrollToBottom();
       }, 100);
     }
-  }, []); // Only run on mount
+  }, [messages.length]); // Include messages.length as a dependency
   
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">

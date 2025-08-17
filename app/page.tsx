@@ -5,7 +5,8 @@ import { EnhancedChatMessages } from "@/components/enhanced-chat-messages"
 import { EnhancedChatInput } from "@/components/enhanced-chat-input"
 import { MobileHeader } from "@/components/mobile-header"
 import { WeatherSection } from "@/components/weather-section"
-import { MarketPriceSection } from "@/components/market-price-section"
+// Market price section will be used in future features
+// import { MarketPriceSection } from "@/components/market-price-section"
 import { OnboardingFlow } from "@/components/onboarding-flow"
 import { UserProfile } from "@/components/user-profile"
 import { LocationLanguageSetup } from "@/components/location-language-setup"
@@ -75,10 +76,10 @@ export default function Home() {
     suggestedQueries,
     isLoading: isLoadingSuggestions,
     error: suggestionsError,
-    generateSuggestedQueries,
-  forceGenerateSuggestedQueries,
+    // generateSuggestedQueries, // Unused but kept for future features
+    forceGenerateSuggestedQueries,
     refreshSuggestedQueries,
-    shouldRegenerateQueries,
+    // shouldRegenerateQueries, // Unused but kept for future features
     lastUpdated
   } = useSuggestedQueries(currentThreadId);
 

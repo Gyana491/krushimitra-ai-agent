@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { MessageSquare, Plus, Trash2, Calendar, User, Languages, X } from "lucide-react"
+import { MessageSquare, Plus, Trash2, Calendar, User, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LanguageSelector } from "./language-selector"
 // Removed ScrollArea in favor of simple overflow container for precise control
@@ -10,7 +10,11 @@ import { formatDistanceToNow } from "date-fns"
 interface ChatThread {
   id: string
   title: string
-  messages: any[]
+  messages: {
+    role: string;
+    content: string | { type: string; [key: string]: unknown }[];
+    id?: string;
+  }[]
   createdAt: Date
   updatedAt: Date
 }

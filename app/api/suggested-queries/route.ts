@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
-  content: any; // can be string or structured parts
+  content: string | { type: string; [key: string]: unknown }[]; // Properly typed to handle both string and structured content
   id?: string;
 }
 

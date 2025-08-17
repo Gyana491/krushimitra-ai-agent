@@ -36,7 +36,8 @@ interface UserProfileProps {
   onClose?: () => void
 }
 
-export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
+export function UserProfile({ userData, onUpdate }: UserProfileProps) {
+  // Note: onClose is not currently used but kept for future navigation
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState<UserProfileData>(userData)
   const [isFarmEditing, setIsFarmEditing] = useState(false)

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Cloud, Wind, Droplets, Compass, Loader2, MapPin } from "lucide-react"
-import { LocationInput } from "./location-input"
+// Location input will be used in future features
+// import { LocationInput } from "./location-input"
 import { useTranslation } from "@/hooks/use-translation"
 
 interface WeatherSectionProps {
@@ -43,7 +44,8 @@ export function WeatherSection({ location: initialLocation, onLocationClick }: W
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [location, setLocation] = useState(initialLocation)
-  const [showLocationInput, setShowLocationInput] = useState(false)
+  // These state variables will be used in future features
+  const [showLocationInput, _setShowLocationInput] = useState(false)
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -71,14 +73,15 @@ export function WeatherSection({ location: initialLocation, onLocationClick }: W
     }
   }, [location])
 
+  // These handlers will be used in future features
   const handleLocationChange = (newLocation: string) => {
     setLocation(newLocation)
-    setShowLocationInput(false)
+    _setShowLocationInput(false)
   }
 
   const handleLocationSelect = (locationData: { display_name: string; lat: string; lon: string }) => {
     setLocation(locationData.display_name)
-    setShowLocationInput(false)
+    _setShowLocationInput(false)
     localStorage.setItem("cropwise-location", locationData.display_name)
   }
 

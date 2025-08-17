@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge"
 import { Database, Download, Trash2, RefreshCw, X } from "lucide-react"
 
 interface SettingsData {
+  // Define at least one property
+  theme?: 'light' | 'dark' | 'system';
 }
 
 interface SettingsPanelProps {
@@ -27,7 +29,8 @@ export function SettingsPanel({
   onClearData,
   onResetSettings,
 }: SettingsPanelProps) {
-  const [localSettings, setLocalSettings] = useState<SettingsData>(settings)
+  // These variables will be used for future settings management
+  // const [localSettings, setLocalSettings] = useState<SettingsData>(settings)
 
   return (
     <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
