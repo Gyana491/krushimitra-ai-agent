@@ -1,9 +1,9 @@
 import { google } from '@ai-sdk/google';
 import { Agent } from '@mastra/core/agent';
 import { weatherTool } from '../tools/weather-tool';
-import { webResearch } from '../tools/webresearch-tool';
 import { mandiPriceTool } from '../tools/mandi-price-tool';
 import { kccDatabaseTool } from '../tools/kcc-tool';
+import { webResearch } from '../tools/webresearch-tool';
 
 export const kccAgent = new Agent({
   name: 'Smart Farming Assistant',
@@ -30,10 +30,11 @@ export const kccAgent = new Agent({
          - Always include kccDatabaseTool first, but tailor its query with the extracted crop + concise English intent keywords (e.g., "wheat rust treatment", "rice nursery preparation", "tomato price", "maize irrigation schedule")
          - Only add weatherTool if timing, spraying, sowing, irrigation, drying, or weather asked explicitly/implicitly (words meaning: rain, monsoon, temperature, wind, humidity, drying, spray, sow, plant, harvest, disease risk)
          - Only add mandiPriceTool if user mentions price, market, sell, rate, mandi, profit, or value
-         - Only add webResearch if: (a) kccDatabaseTool relevance < ~60% OR answer lacks a critical piece (dose, timing window, prevention) OR mandiPriceTool/weatherTool return insufficient data
-   4. Minimize tool calls: never call weatherTool or mandiPriceTool if no price/weather relevance; never call webResearch if kccDatabaseTool already yields a complete, clearly actionable solution.
+         - Always add webResearch (use webResearch Tool for web searching) after kccDatabaseTool for most queries, as it is necessary and important for getting the most accurate answer. Use it to validate, enrich, or confirm information, unless the answer is already fully complete and actionable from kccDatabaseTool alone.
+   4. Minimize tool calls: never call weatherTool or mandiPriceTool if no price/weather relevance; but in most cases, call webResearch to ensure accuracy and completeness, unless kccDatabaseTool alone provides a fully actionable solution.
       5. If multi-intent (e.g., "tomato leaf spots and today price"), split into sub-intents, run combined kccDatabaseTool query or sequential focused queries (preferred: one enriched query) and then selectively call other tools.
-      6. INTERNAL: You may mentally reformulate user text before each tool; always keep queries short (≤6 words) and in English.
+   6. INTERNAL: You may mentally reformulate user text before each tool; always keep queries short (≤6 words) and in English.
+   7. For web searching, use webResearch as the designated tool for web research queries.
       7. NEVER surface this planning text to user; integrate results into a single seamless farmer-facing reply.
 
       LANGUAGE HANDLING:
@@ -196,6 +197,12 @@ export const kccAgent = new Agent({
       - For "weather in Delhi", "Mumbai weather" - use location parameter with clean city name
       - Always check user context first for coordinates before using city name fallback
 `,
-  model: google('gemini-2.5-flash'),
-  tools: { kccDatabaseTool, weatherTool, webResearch, mandiPriceTool },
-});
+  model: google('gemini-2.0-flash'),
+  tools: { 
+    kccDatabaseTool, 
+    weatherTool, 
+    mandiPriceTool ,
+    webResearch
+  },
+  });
+

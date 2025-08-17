@@ -1,83 +1,189 @@
-import { createTool } from '@mastra/core/tools';
-import { z } from 'zod';
-import axios from 'axios';
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
 
-export const webResearch = createTool({
-  id: 'web-research',
-  description: 'Research topics using Perplexity AI for real-time web data',
-  inputSchema: z.object({
-    query: z.string().describe('Research query or topic'),
-    maxResults: z.number().optional().default(5)
-  }),
-  outputSchema: z.object({
-    research: z.string(),
-    sources: z.array(z.string()),
-    keyInsights: z.array(z.string())
-  }),
-  execute: async ({ context }) => {
-    const { query } = context;
-  
-    try {
-      // If no Perplexity API key is provided, use a mock research response
-      if (!process.env.PERPLEXITY_API_KEY) {
-        return {
-          research: `Research on "${query}": This is a mock research response since no Perplexity API key is configured. In a real implementation, this would contain comprehensive research data from Perplexity AI.`,
-          sources: ['https://example.com/source1', 'https://example.com/source2'],
-          keyInsights: [
-            'Key insight 1 about the topic',
-            'Important trend related to the query',
-            'Actionable takeaway for content creation'
-          ]
-        };
-      }
+/**
+ * ENV required:
+ *   GOOGLE_GENERATIVE_AI_API_KEY
+ *
+ * Example usage:
+ * const result = await googleSearchGeminiTool.execute({
+ *   context: {
+ *     prompt: "Weather today in Kothri",
+ *     model: "gemini-1.5-flash",
+ *     useGoogleSearch: true,
+ *     dynamicThreshold: 0.7
+ *   }
+ * });
+ * console.log(result.text);
+ * console.dir(result.response, { depth: null });
+ */
 
-      const response = await axios.post('https://api.perplexity.ai/chat/completions', {
-        model: 'sonar-pro',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a research assistant. Provide comprehensive research with key insights and cite your sources.'
-          },
-          {
-            role: 'user',
-            content: `Research and provide detailed information about: ${query}. Focus on recent developments, trends, and actionable insights.`
-          }
-        ],
-        max_tokens: 2000,
-        temperature: 0.3
-      }, {
-        headers: {
-          'Authorization': `Bearer ${process.env.PERPLEXITY_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      });
+/* =========================
+   Zod Schemas and Types
+========================= */
 
-      const content = response.data.choices[0].message.content;
-    
-      return {
-        research: content,
-        sources: extractSources(content),
-        keyInsights: extractKeyInsights(content)
-      };
-    } catch (error) {
-      console.error('Perplexity API error:', error);
-      // Fallback to mock data if API fails
-      return {
-        research: `Research on "${query}": API request failed, using fallback research data. This would contain real research in production.`,
-        sources: ['https://example.com/fallback'],
-        keyInsights: ['Fallback insight about the topic']
-      };
-    }
-  }
+const PartSchema = z.object({
+  text: z.string().optional(),
 });
 
-function extractSources(content: string): string[] {
-  const urlRegex = /https?:\/\/[^\s)]+/g;
-  return content.match(urlRegex) || [];
+const ContentSchema = z.object({
+  role: z.string().optional(),
+  parts: z.array(PartSchema).optional(),
+});
+
+const CandidateSchema = z.object({
+  content: ContentSchema.optional(),
+  finishReason: z.string().optional(),
+  groundingMetadata: z.any().optional(),
+  avgLogprobs: z.number().optional(),
+});
+
+const UsageMetadataSchema = z.object({
+  promptTokenCount: z.number().optional(),
+  candidatesTokenCount: z.number().optional(),
+  totalTokenCount: z.number().optional(),
+}).partial();
+
+const GeminiResponseSchema = z.object({
+  candidates: z.array(CandidateSchema).optional(),
+  usageMetadata: UsageMetadataSchema.optional(),
+  modelVersion: z.string().optional(),
+  responseId: z.string().optional(),
+});
+
+type GeminiResponse = z.infer<typeof GeminiResponseSchema>;
+
+/* =========================
+   Tool Input/Output Schemas
+========================= */
+
+const InputSchema = z.object({
+  // Primary convenience input
+  prompt: z.string().min(1).describe("Single-turn text prompt."),
+
+  // Optional: override model
+  model: z.string().default("gemini-1.5-flash"),
+
+  // Enable Google Search grounding (dynamic retrieval)
+  useGoogleSearch: z.boolean().default(true),
+
+  // 0..1 threshold; higher = only use retrieval when model is less confident
+  dynamicThreshold: z.number().min(0).max(1).default(0.7),
+
+  // Advanced: full contents to support multi-turn or multi-part messages
+  contents: z
+    .array(
+      z.object({
+        role: z.string().optional(),
+        parts: z.array(z.object({ text: z.string() })).min(1),
+      })
+    )
+    .optional(),
+});
+
+const OutputSchema = z.object({
+  text: z.string().nullable(),
+  response: z.any(), // full raw JSON response from Gemini
+});
+
+/* =========================
+   Helper: Extract text safely
+========================= */
+
+function extractPrimaryText(json: GeminiResponse): string | null {
+  const parts = json?.candidates?.[0]?.content?.parts ?? [];
+  if (!Array.isArray(parts) || parts.length === 0) return null;
+
+  // Concatenate all text parts, fallback to first
+  const combined = parts
+    .map((p) => (typeof p?.text === "string" ? p.text : ""))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+
+  return combined.length > 0 ? combined : null;
 }
 
-function extractKeyInsights(content: string): string[] {
-  return content.split('\n').filter(line => 
-    line.includes('insight') || line.includes('trend') || line.includes('important')
-  ).slice(0, 5); // Limit to 5 insights
-}
+/* =========================
+   Tool Implementation
+========================= */
+
+export const webResearch = createTool({
+  id: "web-research",
+  description:
+    "Research topics using Google Gemini with optional dynamic retrieval from Google Search.",
+  inputSchema: InputSchema,
+  outputSchema: OutputSchema,
+
+  execute: async ({ context }) => {
+    const {
+      prompt,
+      model = "gemini-1.5-flash",
+      useGoogleSearch = true,
+      dynamicThreshold = 0.7,
+      contents,
+    } = context;
+
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "GOOGLE_GENERATIVE_AI_API_KEY is missing. Set it in your environment (e.g., .env)."
+      );
+    }
+
+    // Build request body
+    const body: Record<string, any> = {
+      contents:
+        contents && contents.length > 0
+          ? contents
+          : [
+              {
+                role: "user",
+                parts: [{ text: prompt }],
+              },
+            ],
+    };
+
+    if (useGoogleSearch) {
+      body.tools = [
+        {
+          google_search_retrieval: {
+            dynamic_retrieval_config: {
+              mode: "MODE_DYNAMIC",
+              dynamic_threshold: dynamicThreshold,
+            },
+          },
+        },
+      ];
+    }
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
+      model
+    )}:generateContent`;
+
+    // Call Gemini
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Gemini API error ${res.status}: ${errText}`);
+    }
+
+    const raw = await res.json();
+
+    // Validate/parse shape (non-fatal if fails; we still return raw)
+    const parsed = GeminiResponseSchema.safeParse(raw);
+    const text = parsed.success ? extractPrimaryText(parsed.data) : null;
+
+    return {
+      text
+    };
+  },
+});
