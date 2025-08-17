@@ -29,6 +29,7 @@ interface ConversationSidebarProps {
   onClose: () => void
   onProfileClick?: () => void
   userName?: string
+  onLanguageChange?: () => void // New prop to trigger suggested queries generation
 }
 
 export function ConversationSidebar({
@@ -40,7 +41,8 @@ export function ConversationSidebar({
   onDeleteThread,
   onClose,
   onProfileClick,
-  userName = "Farmer"
+  userName = "Farmer",
+  onLanguageChange
 }: ConversationSidebarProps) {
   // Helper function to truncate thread title
   const truncateTitle = (title: string, maxLength: number = 30) => {
@@ -127,7 +129,7 @@ export function ConversationSidebar({
                 </Button>
               )}
               <div className="flex-1">
-                <LanguageSelector variant="sidebar" />
+                <LanguageSelector variant="sidebar" onLanguageChange={onLanguageChange} />
               </div>
             </div>
             <Button

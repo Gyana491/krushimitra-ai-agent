@@ -17,7 +17,7 @@ interface SuggestedQueriesProps {
 
 export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
   queries,
-  // isLoading, // Not currently used but kept for future loading states
+  isLoading,
   // error, // Not currently used but kept for future error handling
   onQuerySelect,
   onRefresh,
@@ -28,6 +28,25 @@ export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
   // Don't show anything while agent is responding
   if (isAgentResponding) {
     return null;
+  }
+  // Show loading state if loading and no queries yet
+  if (isLoading && (!queries || queries.length === 0)) {
+    return (
+      <Card className={`${className} bg-card border-emerald-200/70`}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center gap-2 text-emerald-700">
+            <Sparkles className="w-4 h-4" />
+            {t('suggestedFollowUps')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <div className="flex items-center justify-center py-4">
+            <RefreshCw className="w-4 h-4 animate-spin text-emerald-600 mr-2" />
+            <span className="text-sm text-emerald-600">Generating suggestions...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
   }
   // Hide everything until we have actual queries
   if (!queries || queries.length === 0) {
@@ -47,8 +66,9 @@ export const SuggestedQueries: React.FC<SuggestedQueriesProps> = ({
               onClick={onRefresh}
               className="h-6 px-2 ml-auto"
               title="Refresh suggestions"
+              disabled={isLoading}
             >
-              <RefreshCw className="w-3 h-3" />
+              <RefreshCw className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
             </Button>
           )}
         </CardTitle>

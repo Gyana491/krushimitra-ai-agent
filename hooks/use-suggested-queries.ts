@@ -17,10 +17,8 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     lastUpdated: null,
   });
 
-  // Rate limiting - prevent too many API calls
-  const lastApiCall = useRef<number>(0);
+  // Simple concurrency guard
   const isGenerating = useRef<boolean>(false);
-  const MIN_INTERVAL_MS = 8000; // shorter gap; we'll still only call once per assistant turn
   const lastContextHash = useRef<string | null>(null);
 
   const computeContextHash = (messages: ChatMessage[]): string => {
@@ -35,35 +33,46 @@ export const useSuggestedQueries = (currentThreadId: string) => {
   useEffect(() => {
     const loadSuggestedQueries = async () => {
       try {
-        // First try to migrate from localStorage if it exists
         await chatDB.migrateSuggestedQueriesFromLocalStorage();
-        
-        // Then load from IndexedDB
-        const savedQueries = await chatDB.getSuggestedQueries();
+        const id = currentThreadId || 'global';
+        const savedQueries = await chatDB.getSuggestedQueries(id);
         if (savedQueries && Array.isArray(savedQueries.queries)) {
-          setState(prev => ({ 
-            ...prev, 
-            queries: savedQueries.queries, 
-            lastUpdated: savedQueries.lastUpdated || null 
+          setState(prev => ({
+            ...prev,
+            queries: savedQueries.queries,
+            lastUpdated: savedQueries.lastUpdated || null
           }));
           lastContextHash.current = savedQueries.contextHash || null;
+        } else if (!currentThreadId) {
+          // fallback: try onboarding id
+          const onboarding = await chatDB.getSuggestedQueries('onboarding');
+          if (onboarding?.queries?.length) {
+            setState(prev => ({ ...prev, queries: onboarding.queries, lastUpdated: onboarding.lastUpdated || null }));
+            lastContextHash.current = onboarding.contextHash || null;
+          }
         }
       } catch (e) {
         console.warn('Failed to load suggested queries:', e);
       }
     };
-
     loadSuggestedQueries();
-  }, []);
+  }, [currentThreadId]);
 
   // Save suggested queries to IndexedDB
   const saveToIndexedDB = useCallback(async (queries: string[], contextHash: string) => {
     try {
-      await chatDB.saveSuggestedQueries(queries, contextHash);
+      const id = currentThreadId || 'global';
+      await chatDB.saveSuggestedQueries(queries, contextHash, id);
+      
+      // ALWAYS update global queries for homepage rendering
+      if (id !== 'global') {
+        console.log('Updating global suggested queries for homepage');
+        await chatDB.saveSuggestedQueries(queries, contextHash, 'global');
+      }
     } catch (error) {
       console.error('Failed to save suggested queries to IndexedDB:', error);
     }
-  }, []);
+  }, [currentThreadId]);
 
   // Generate suggested queries based on conversation messages
   const coreGenerate = useCallback(async (messages: ChatMessage[], threadId: string, force = false) => {
@@ -72,43 +81,25 @@ export const useSuggestedQueries = (currentThreadId: string) => {
       return;
     }
 
-    const now = Date.now();
     const contextHash = computeContextHash(messages);
-    const contextUnchanged = lastContextHash.current === contextHash;
-    const tooSoon = now - lastApiCall.current < MIN_INTERVAL_MS;
-    const notEnough = messages.filter(m => m.role === 'assistant').length === 0;
+  const notEnough = messages.filter(m => m.role === 'assistant').length === 0;
 
     // Log for debugging
     console.log('Suggested Query Generation Check:', {
       threadId,
       forceGeneration: force,
       messagesCount: messages.length,
-      contextUnchanged,
-      tooSoon,
       notEnough,
       isGenerating: isGenerating.current
     });
 
-    if (!force) {
-      if (contextUnchanged) {
-        console.log('Context unchanged, skipping query generation');
-        return;
-      }
-      if (tooSoon) {
-        console.log('Too soon since last API call, skipping query generation');
-        return;
-      }
-      if (isGenerating.current) {
-        console.log('Already generating, skipping query generation');
-        return;
-      }
-      if (notEnough) {
-        console.log('Not enough messages for context, skipping query generation');
-        return;
-      }
-    } else if (isGenerating.current) {
-      console.log('Force requested but already generating, skipping query generation');
-      return; // even force won't run concurrently
+    if (isGenerating.current) {
+      console.log('Already generating, skipping');
+      return;
+    }
+    if (notEnough) {
+      console.log('No assistant message yet, skipping suggestions');
+      return;
     }
 
     console.log('Starting query generation for thread:', threadId);
@@ -117,13 +108,21 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
   try {
-      lastApiCall.current = now;
-  console.log('Generating suggested queries (global cache)');
-  lastContextHash.current = contextHash;
+      console.log('Generating suggested queries (immediate)');
+      lastContextHash.current = contextHash;
 
       // Attach location context from selected location storage
       let locationContext: any = undefined;
+      let userProfile: any = undefined;
+      
       try {
+        // Get user profile data
+        const userRaw = localStorage.getItem('cropwise-user-data');
+        if (userRaw) {
+          userProfile = JSON.parse(userRaw);
+        }
+        
+        // Get location data
         const locRaw = localStorage.getItem('cropwise-selected-location');
         if (locRaw) {
           const loc = JSON.parse(locRaw);
@@ -143,32 +142,58 @@ export const useSuggestedQueries = (currentThreadId: string) => {
         }
       } catch {}
 
+      // Get only the last user message and last assistant message
+      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+      const lastUser = [...messages].reverse().find(m => m.role === 'user');
+      
+      // Only send the essential context - last conversation pair
+      const contextMessages = [lastUser, lastAssistant].filter((msg): msg is NonNullable<typeof msg> => msg !== undefined);
+      
+      console.log('Sending API request to /api/suggested-queries with payload:', {
+        messagesCount: contextMessages.length,
+        lastUserContent: lastUser?.content?.slice(0, 100),
+        lastAssistantContent: lastAssistant?.content?.slice(0, 100),
+        hasUserProfile: !!userProfile,
+        userLanguage: userProfile?.language,
+        locationContext
+      });
+
+      const requestBody: any = {
+        messages: contextMessages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })),
+        userProfile,
+        ...(locationContext ? { locationContext } : {})
+      };
+
       const response = await fetch('/api/suggested-queries', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          messages: messages.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          ...(locationContext ? { locationContext } : {})
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('API response status:', response.status, response.statusText);
+
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API error response:', errorText);
         if (response.status === 429) {
           throw new Error('Too many requests. Please wait before generating new suggestions.');
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('API response data:', data);
 
       if (data.success && Array.isArray(data.suggestedQueries)) {
         let newQueries: string[] = data.suggestedQueries.filter((q: any) => typeof q === 'string' && q.trim()).slice(0,4);
+        console.log('Filtered queries from API:', newQueries);
         if (newQueries.length === 0) {
+          console.warn('No valid queries from API, using heuristic fallback');
           // Build client heuristic rather than throwing
           const lastUser = [...messages].reverse().find(m => m.role === 'user');
           const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
@@ -183,6 +208,7 @@ export const useSuggestedQueries = (currentThreadId: string) => {
           if (!heuristic.length) heuristic.push('What should I ask next for better advice?');
           newQueries = heuristic.slice(0,4);
         }
+        console.log('Final queries being set:', newQueries);
         setState(prev => ({
           ...prev,
           queries: newQueries,
@@ -191,6 +217,7 @@ export const useSuggestedQueries = (currentThreadId: string) => {
           lastUpdated: new Date().toISOString(),
         }));
         saveToIndexedDB(newQueries, contextHash);
+        console.log('Suggestions saved to state and IndexedDB successfully');
       } else {
         throw new Error(data.error || 'Malformed suggestions response');
       }
@@ -232,26 +259,11 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     } finally {
       isGenerating.current = false;
     }
-  }, [saveToIndexedDB, MIN_INTERVAL_MS]);
+  }, [saveToIndexedDB]);
 
-  const generateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => coreGenerate(messages, threadId, false), [coreGenerate]);
-  const forceGenerateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => {
-    console.log('Force generating queries for thread:', threadId);
-    
-    // Reset the generation state to allow force-regeneration even if something was in progress
-    isGenerating.current = false;
-    lastApiCall.current = 0;
-    
-    // Add some delay to ensure we don't clash with other operations
-    setTimeout(() => {
-      // Double check there are messages to work with
-      if (messages && messages.length > 0) {
-        coreGenerate(messages, threadId, true);
-      } else {
-        console.warn('Cannot generate suggestions: No messages available');
-      }
-    }, 300);
-  }, [coreGenerate]);
+  const generateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string, force = false) => coreGenerate(messages, threadId, force), [coreGenerate]);
+  // Force helper always bypasses context hash logic (already removed) but clarifies intent
+  const generateNow = useCallback((messages: ChatMessage[], threadId: string) => coreGenerate(messages, threadId, true), [coreGenerate]);
 
   // Clear suggested queries for current thread
   const clearSuggestedQueries = useCallback(async (_threadId?: string) => {
@@ -262,12 +274,12 @@ export const useSuggestedQueries = (currentThreadId: string) => {
       lastUpdated: null,
     }));
     try {
-      await chatDB.clearSuggestedQueries();
+      await chatDB.clearSuggestedQueries(currentThreadId || undefined);
     } catch (error) {
       console.error('Failed to clear suggested queries from IndexedDB:', error);
     }
     lastContextHash.current = null;
-  }, []);
+  }, [currentThreadId]);
 
   // Refresh suggested queries
   const refreshSuggestedQueries = useCallback(async (messages: ChatMessage[], threadId: string) => {
@@ -275,33 +287,126 @@ export const useSuggestedQueries = (currentThreadId: string) => {
   }, [generateSuggestedQueries]);
 
   // Check if queries should be regenerated (based on time or message count)
-  const shouldRegenerateQueries = useCallback((messages: ChatMessage[], lastUpdated: string | null): boolean => {
-    if (!lastUpdated) return true;
-    
-    // Don't regenerate if we just made an API call recently
-    const now = Date.now();
-    if (now - lastApiCall.current < MIN_INTERVAL_MS) {
-      return false;
+  const shouldRegenerateQueries = useCallback((_messages: ChatMessage[], _lastUpdated: string | null): boolean => {
+    // With immediate generation strategy we can just always regenerate when called externally
+    return true;
+  }, []);
+
+  // Generate initial suggested queries after onboarding completion
+  const generateOnboardingQueries = useCallback(async () => {
+    try {
+      console.log('Generating initial suggested queries after onboarding');
+      
+      // Get user profile and location context
+      let userProfile: any = undefined;
+      let locationContext: any = undefined;
+      
+      try {
+        const userRaw = localStorage.getItem('cropwise-user-data');
+        if (userRaw) {
+          userProfile = JSON.parse(userRaw);
+        }
+        
+        const locRaw = localStorage.getItem('cropwise-selected-location');
+        if (locRaw) {
+          const loc = JSON.parse(locRaw);
+          if (loc) {
+            locationContext = {
+              address: loc.address || [loc.cityName, loc.stateName].filter(Boolean).join(', '),
+              cityName: loc.cityName,
+              stateName: loc.stateName,
+              areaSizeAcres: loc.areaSizeAcres || (typeof loc.areaSize === 'number' ? `${(loc.areaSize * 0.000247105).toFixed(2)} acres` : undefined),
+              locationAddress: loc.address || [loc.cityName, loc.stateName].filter(Boolean).join(', '),
+              latitude: loc.lat,
+              longitude: loc.lng,
+              areaSizeSqMeters: loc.areaSize
+            };
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load user context for onboarding queries:', e);
+      }
+
+      // Create initial conversation context for onboarding
+      const language = userProfile?.language || 'English';
+      const welcomeMessage = language === 'ଓଡ଼ିଆ' ? 
+        'ନମସ୍କାର! ମୁଁ ଆପଣଙ୍କର କୃଷି ସହାୟକ। ଆପଣଙ୍କ ଫସଲ ବିଷୟରେ କୌଣସି ପ୍ରଶ୍ନ ଅଛି କି?' :
+        language === 'हिंदी' ?
+        'नमस्कार! मैं आपका कृषि सहायक हूँ। आपकी फसल के बारे में कोई सवाल है?' :
+        'Hello! I am your farming assistant. Do you have any questions about your crops?';
+
+      const assistantResponse = language === 'ଓଡ଼ିଆ' ?
+        `ନମସ୍କାର ${userProfile?.name || 'କୃଷକ ଭାଇ'}! ମୁଁ ଆପଣଙ୍କର ${userProfile?.mainCrops || 'ଫସଲ'} ଚାଷ ପାଇଁ ସାହାଯ୍ୟ କରିବାକୁ ଏଠାରେ ଅଛି। ଆପଣଙ୍କ ${locationContext?.cityName || 'ଅଞ୍ଚଳ'}ର ପାଣିପାଗ ଓ ବଜାର ଦର ବିଷୟରେ ମଧ୍ୟ ସୂଚନା ଦେଇପାରିବି।` :
+        language === 'हिंदी' ?
+        `नमस्कार ${userProfile?.name || 'किसान भाई'}! मैं आपकी ${userProfile?.mainCrops || 'फसल'} की खेती में मदद करने के लिए यहाँ हूँ। आपके ${locationContext?.cityName || 'क्षेत्र'} के मौसम और बाज़ार भाव की जानकारी भी दे सकता हूँ।` :
+        `Hello ${userProfile?.name || 'Farmer'}! I'm here to help with your ${userProfile?.mainCrops || 'crops'} farming. I can also provide weather and market information for ${locationContext?.cityName || 'your area'}.`;
+
+      // Create initial messages for suggestion generation
+      const initialMessages: ChatMessage[] = [
+        { role: 'user', content: welcomeMessage, id: 'onboarding-user', parts: [] },
+        { role: 'assistant', content: assistantResponse, id: 'onboarding-assistant', parts: [] }
+      ];
+
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+      const response = await fetch('/api/suggested-queries', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: initialMessages,
+          userProfile,
+          ...(locationContext ? { locationContext } : {})
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const queries = data.suggestedQueries || [];
+        
+        if (queries.length > 0) {
+          const contextHash = computeContextHash(initialMessages);
+          
+          // Save to both global and current thread
+          await chatDB.saveSuggestedQueries(queries, contextHash, 'global');
+          if (currentThreadId && currentThreadId !== 'global') {
+            await chatDB.saveSuggestedQueries(queries, contextHash, currentThreadId);
+          }
+          
+          setState(prev => ({ 
+            ...prev, 
+            queries, 
+            isLoading: false, 
+            lastUpdated: new Date().toISOString(),
+            error: null 
+          }));
+          
+          console.log('Generated onboarding suggested queries:', queries.length);
+        } else {
+          setState(prev => ({ ...prev, isLoading: false, error: 'No queries generated' }));
+        }
+      } else {
+        throw new Error(`API responded with status ${response.status}`);
+      }
+    } catch (error) {
+      console.error('Failed to generate onboarding queries:', error);
+      setState(prev => ({ 
+        ...prev, 
+        isLoading: false, 
+        error: error instanceof Error ? error.message : 'Failed to generate queries' 
+      }));
     }
-    
-    // Only regenerate if last update was more than 10 minutes ago
-    // This makes it less aggressive since we're now only calling after agent responses
-    const lastUpdateTime = new Date(lastUpdated).getTime();
-    const tenMinutesAgo = now - (10 * 60 * 1000);
-    
-    if (lastUpdateTime < tenMinutesAgo) return true;
-    
-    // Don't regenerate too frequently
-    return false;
-  }, [MIN_INTERVAL_MS]);
+  }, [currentThreadId]);
 
   return {
     suggestedQueries: state.queries,
     isLoading: state.isLoading,
     error: state.error,
     lastUpdated: state.lastUpdated,
-  generateSuggestedQueries,
-  forceGenerateSuggestedQueries,
+    generateSuggestedQueries,
+    generateNow,
+    generateOnboardingQueries, // Add the new function
     clearSuggestedQueries,
     refreshSuggestedQueries,
     shouldRegenerateQueries,

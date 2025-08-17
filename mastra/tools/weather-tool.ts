@@ -47,9 +47,12 @@ interface DailyForecast {
 
 export const weatherTool = createTool({
   id: 'get-weather-forecast',
-  description: 'Get 7-day weather forecast for a location. Input should be ONLY the city name (e.g., "New York", not "New York, NY, USA")',
+  description: 'Get 7-day weather forecast for a location. Can use coordinates (lat/lng) for current location or city name for other locations.',
   inputSchema: z.object({
-    location: z.string().describe('City name only - no state codes, country names, or extra details'),
+    location: z.string().optional().describe('City name only - no state codes, country names, or extra details'),
+    latitude: z.number().optional().describe('Latitude coordinate for precise location'),
+    longitude: z.number().optional().describe('Longitude coordinate for precise location'),
+    useCurrentLocation: z.boolean().optional().describe('Whether to use user current location coordinates')
   }),
   outputSchema: z.object({
     location: z.string(),
@@ -75,7 +78,15 @@ export const weatherTool = createTool({
     })),
   }),
   execute: async ({ context }) => {
-    return await getWeatherForecast(context.location);
+    // If coordinates are provided, use them directly
+    if (context.latitude && context.longitude) {
+      return await getWeatherByCoordinates(context.latitude, context.longitude);
+    }
+    // Otherwise, use location name
+    if (context.location) {
+      return await getWeatherForecast(context.location);
+    }
+    throw new Error('Either location name or coordinates (latitude/longitude) must be provided');
   },
 });
 
@@ -115,6 +126,41 @@ const getWeatherForecast = async (location: string) => {
 
   return {
     location: name,
+    currentWeather: {
+      temperature: data.current.temperature_2m,
+      feelsLike: data.current.apparent_temperature,
+      humidity: data.current.relative_humidity_2m,
+      windSpeed: data.current.wind_speed_10m,
+      windGust: data.current.wind_gusts_10m,
+      conditions: getWeatherCondition(data.current.weather_code),
+    },
+    forecast,
+  };
+};
+
+const getWeatherByCoordinates = async (latitude: number, longitude: number) => {
+  // Get both current weather and 7-day forecast using coordinates
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=7`;
+
+  const response = await fetch(weatherUrl);
+  const data = (await response.json()) as WeatherResponse;
+
+  // Process daily forecast
+  const forecast: DailyForecast[] = data.daily.time.map((date, index) => ({
+    date,
+    maxTemp: data.daily.temperature_2m_max[index],
+    minTemp: data.daily.temperature_2m_min[index],
+    maxFeelsLike: data.daily.apparent_temperature_max[index],
+    minFeelsLike: data.daily.apparent_temperature_min[index],
+    precipitation: data.daily.precipitation_sum[index],
+    precipitationChance: data.daily.precipitation_probability_max[index],
+    maxWindSpeed: data.daily.wind_speed_10m_max[index],
+    maxWindGust: data.daily.wind_gusts_10m_max[index],
+    conditions: getWeatherCondition(data.daily.weather_code[index]),
+  }));
+
+  return {
+    location: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
     currentWeather: {
       temperature: data.current.temperature_2m,
       feelsLike: data.current.apparent_temperature,

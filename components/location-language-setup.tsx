@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MapPin, Globe, Check, Loader2 } from "lucide-react"
 import { useLocationDetection } from "@/hooks/use-location"
 import { useSelectedLocation } from "@/hooks/use-selected-location"
+import { GoogleLocationPicker, SelectedLocationData } from "@/components/google-location-picker"
 
 interface LocationLanguageData {
   location: string
@@ -37,6 +38,11 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
   const [isSavingLocation, setIsSavingLocation] = useState(false)
   const [isSavingLanguage, setIsSavingLanguage] = useState(false)
   const { detectLocation, error: detectError, isDetecting } = useLocationDetection()
+
+  // Handle location picker changes
+  const handleLocationChange = useCallback((locationData: SelectedLocationData) => {
+    setData(prev => ({ ...prev, location: locationData.address }))
+  }, [])
 
   const updateData = (field: keyof LocationLanguageData, value: string) => {
     if (field === 'location') return; // location is derived
@@ -116,8 +122,13 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label>Farm Location (managed via map picker)</Label>
-            <Input disabled value={data.location} className="flex-1" />
+            <Label>Farm Location</Label>
+            <GoogleLocationPicker
+              value={data.location}
+              onChange={handleLocationChange}
+              placeholder="Search or autodetect your farm location"
+              className="w-full"
+            />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

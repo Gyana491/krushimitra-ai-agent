@@ -15,6 +15,7 @@ import { SuggestedQueries } from "@/components/suggested-queries"
 import { useTranslation } from "@/hooks/use-translation"
 import { useChat } from "@/hooks/use-chat"
 import { useSuggestedQueries } from "@/hooks/use-suggested-queries"
+import { useGlobalSuggestedQueries } from "@/hooks/use-global-suggested-queries"
 import { chatDB } from "@/lib/chat-db"
 
 interface UserData {
@@ -36,8 +37,7 @@ interface UserData {
 export default function Home() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
-  // Translation hook retained for future localization usage (t currently unused)
-  useTranslation(userData?.language)
+  const { t } = useTranslation(userData?.language)
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -81,8 +81,19 @@ export default function Home() {
     error: suggestionsError,
     // generateSuggestedQueries, // Unused but kept for future features
     refreshSuggestedQueries,
+    generateNow,
+    generateOnboardingQueries, // Add the new function
+    clearSuggestedQueries,
     // shouldRegenerateQueries, // Unused but kept for future features
   } = useSuggestedQueries(currentThreadId);
+
+  // Global suggested queries for homepage
+  const {
+    queries: globalQueries,
+    isLoading: isLoadingGlobalQueries,
+    refreshGlobalQueries,
+    regenerateGlobalQueries
+  } = useGlobalSuggestedQueries();
 
   // Track previous status to detect when streaming completes
   const [prevStatus, setPrevStatus] = useState<typeof status>('idle');
@@ -91,17 +102,18 @@ export default function Home() {
   useEffect(() => {
     // Only generate when conversation completes
     const hasJustCompleted = prevStatus === 'streaming' && status === 'idle';
+    // Clear any stale suggestions right when new streaming starts
+    if (status === 'streaming' && prevStatus !== 'streaming') {
+      clearSuggestedQueries(currentThreadId);
+    }
     
     if (hasJustCompleted && messages.length >= 2 && currentThreadId) {
-      // Simple delay to ensure everything is settled
-      setTimeout(() => {
-        refreshSuggestedQueries(messages, currentThreadId);
-      }, 500);
+      generateNow(messages, currentThreadId);
     }
     
     // Always update previous status
     setPrevStatus(status);
-  }, [status, prevStatus, messages, currentThreadId, refreshSuggestedQueries]);
+  }, [status, prevStatus, messages, currentThreadId, generateNow, clearSuggestedQueries]);
 
   // Simple wrapper that handles view changes
   const wrappedSendMessage = (message: string) => {
@@ -166,58 +178,23 @@ export default function Home() {
       totalChats: 0,
       diseasesIdentified: 0,
       achievements: ["Welcome to CropWise!"],
-    mainCrops: Array.isArray(data.mainCrops)
-    ? data.mainCrops
-    : (typeof (data as { mainCrops?: unknown }).mainCrops === 'string'
-      ? String((data as { mainCrops?: unknown }).mainCrops)
-        .split(/[;,]/)
-        .map((c) => c.trim())
-        .filter(Boolean)
-      : []),
+      mainCrops: Array.isArray(data.mainCrops)
+        ? data.mainCrops as string[]
+        : (typeof (data as any).mainCrops === 'string'
+            ? ((data as any).mainCrops as string).split(/[;,]/).map((c: string) => c.trim()).filter(Boolean)
+            : []),
     }
     setUserData(enhancedData)
     localStorage.setItem("cropwise-user-data", JSON.stringify(enhancedData))
 
-    // Try to read selected location for richer context
-    let locSummary = ''
+    // Generate initial suggested queries based on user profile and location
     try {
-      const rawLoc = localStorage.getItem('cropwise-selected-location')
-      if (rawLoc) {
-        const loc = JSON.parse(rawLoc)
-        if (loc?.cityName && loc?.stateName) locSummary = `${loc.cityName}, ${loc.stateName}`
-        else if (loc?.address) locSummary = loc.address
-      }
-    } catch {}
-
-    // Generate initial suggested queries based on user context (store directly in IndexedDB)
-    const buildFallback = (): string[] => {
-      const primaryCrop = enhancedData.mainCrops[0] || 'crop'
-      const experience = enhancedData.experience || 'beginner'
-      const queries: string[] = [
-        `Best current practices for ${primaryCrop} (${experience})?`,
-        locSummary ? `Upcoming weather risks for ${locSummary}?` : `How to prepare for upcoming weather?`,
-        `Soil or nutrient focus for ${primaryCrop} now?`,
-        `Early pest or disease signs to watch in ${primaryCrop}?`
-      ]
-      return queries.slice(0,4)
+      console.log('Generating onboarding suggested queries...');
+      await generateOnboardingQueries();
+    } catch (e) {
+      console.warn('Failed to generate onboarding suggestions:', e);
     }
-    let initialQueries: string[] = buildFallback()
-    try {
-      const syntheticMessages = [{
-        role: 'user',
-        content: `User Profile\nName: ${enhancedData.name}\nLocation: ${locSummary || 'Unknown'}\nFarm Type: ${enhancedData.farmType || 'N/A'}\nExperience: ${enhancedData.experience || 'N/A'}\nMain Crops: ${enhancedData.mainCrops.join(', ') || 'None'}\nFarm Size: ${enhancedData.farmSize || 'N/A'}\n\nGenerate 3-4 short follow-up agricultural questions this farmer is likely to ask next. Return ONLY JSON array.`
-      }]
-      const resp = await fetch('/api/suggested-queries', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ messages: syntheticMessages }) })
-      if (resp.ok) {
-        const dataResp = await resp.json()
-        if (Array.isArray(dataResp?.suggestedQueries) && dataResp.suggestedQueries.length) {
-          initialQueries = dataResp.suggestedQueries.slice(0,4)
-        }
-      }
-    } catch (e) { console.warn('AI onboarding suggestions failed, using fallback', e) }
-  // Store locally so UI can show immediately after onboarding
-  setInitialSuggestedQueries(initialQueries)
-  try { await chatDB.saveSuggestedQueries(initialQueries, 'onboarding') } catch (e) { console.warn('Failed saving onboarding suggestions to DB', e) }
+
     setIsOnboarding(false)
   }
 
@@ -318,10 +295,41 @@ export default function Home() {
     clearImages()
   }
 
+  // Handle language change in sidebar to regenerate suggestions
+  const handleLanguageChangeInSidebar = () => {
+    // Add a small delay to ensure language change is processed
+    setTimeout(() => {
+      // Generate new suggestions based on the current context with new language
+      if (currentView === "home") {
+        // For homepage, regenerate global suggestions with new language
+        console.log('Language changed, regenerating global suggestions for homepage');
+        regenerateGlobalQueries();
+      } else if (messages.length >= 2 && currentThreadId) {
+        // For chat view, regenerate suggestions for current thread
+        console.log('Language changed, regenerating suggestions for current chat thread');
+        generateNow(messages, currentThreadId);
+      } else {
+        // Fallback: just regenerate global queries
+        console.log('Language changed, regenerating global suggestions as fallback');
+        regenerateGlobalQueries();
+      }
+    }, 100); // Small delay to ensure language context is updated
+  }
+
   // Simple refresh function
   const handleRefreshSuggestions = () => {
-    if (messages.length >= 2 && currentThreadId) {
+    if (currentView === "home") {
+      // For homepage, regenerate global queries (force new generation)
+      console.log('Refreshing homepage suggestions');
+      regenerateGlobalQueries();
+    } else if (messages.length >= 2 && currentThreadId) {
+      // For chat view, refresh current thread suggestions
+      console.log('Refreshing chat thread suggestions');
       refreshSuggestedQueries(messages, currentThreadId);
+    } else {
+      // Fallback: regenerate global queries
+      console.log('Refreshing suggestions with global queries fallback');
+      regenerateGlobalQueries();
     }
   }
 
@@ -335,9 +343,22 @@ export default function Home() {
 
   // Function to get suggested queries - now using our AI-generated suggestions or fallback
   const getSuggestedQueries = () => {
-    if (suggestedQueries && suggestedQueries.length > 0) return suggestedQueries
-    if (initialSuggestedQueries.length > 0) return initialSuggestedQueries
-    return []
+    // For chat threads, prioritize thread-specific suggestions
+    if (currentView === "chat" && suggestedQueries && suggestedQueries.length > 0) {
+      return suggestedQueries;
+    }
+    
+    // For homepage, prioritize global suggestions (always updated)
+    if (currentView === "home" && globalQueries && globalQueries.length > 0) {
+      return globalQueries;
+    }
+    
+    // Fallback to thread suggestions or initial suggestions
+    if (suggestedQueries && suggestedQueries.length > 0) return suggestedQueries;
+    if (initialSuggestedQueries.length > 0) return initialSuggestedQueries;
+    if (globalQueries && globalQueries.length > 0) return globalQueries;
+    
+    return [];
   }
 
   if (isOnboarding) {
@@ -380,6 +401,7 @@ export default function Home() {
           setIsSidebarOpen(false)
         }}
         userName={userData?.name || "Farmer"}
+        onLanguageChange={handleLanguageChangeInSidebar}
       />
 
   <main className="flex-1 flex flex-col pb-20 max-w-4xl mx-auto w-full">
@@ -393,7 +415,7 @@ export default function Home() {
               <div className="px-4">
                 <SuggestedQueries
                   queries={getSuggestedQueries()}
-                  isLoading={isLoadingSuggestions && suggestedQueries.length === 0}
+                  isLoading={isLoadingGlobalQueries || (isLoadingSuggestions && suggestedQueries.length === 0)}
                   error={suggestionsError}
                   onQuerySelect={handleSendMessage}
                   onRefresh={() => handleRefreshSuggestions()}
@@ -421,13 +443,14 @@ export default function Home() {
         {currentView === "chat" && (
           <>
             <div className="flex-1 overflow-y-auto">
-              <EnhancedChatMessages 
-                messages={messages} 
-                isLoading={status === 'streaming'} 
-                streamingState={streamingState}
-                suggestedQueries={status === 'idle' ? suggestedQueries : []}
-                onSuggestedQueryClick={handleSendMessage}
-              />
+                <EnhancedChatMessages 
+                  messages={messages} 
+                  isLoading={status === 'streaming'} 
+                  streamingState={streamingState}
+                  // Only show freshly generated suggestions (no fallback) after agent finished
+                  suggestedQueries={status === 'idle' ? suggestedQueries : []}
+                  onSuggestedQueryClick={handleSendMessage}
+                />
             </div>
 
             <EnhancedChatInput

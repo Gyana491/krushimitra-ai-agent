@@ -9,6 +9,10 @@ interface UserContext {
   experience?: string;
   mainCrops?: string;
   farmSize?: string;
+  latitude?: number;
+  longitude?: number;
+  cityName?: string;
+  stateName?: string;
 }
 
 function buildUserContextSystemMessage(userContext: UserContext): string {

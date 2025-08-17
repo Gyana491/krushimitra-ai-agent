@@ -9,9 +9,10 @@ import { useUserContext } from "@/hooks/use-user-context"
 
 interface LanguageSelectorProps {
   variant?: "header" | "settings" | "sidebar"
+  onLanguageChange?: () => void // New prop to trigger suggested queries generation
 }
 
-export function LanguageSelector({ variant = "header" }: LanguageSelectorProps) {
+export function LanguageSelector({ variant = "header", onLanguageChange }: LanguageSelectorProps) {
   const { language, changeLanguage, languages } = useTranslation()
   const { updateUserContext } = useUserContext()
   const [isOpen, setIsOpen] = useState(false)
@@ -22,6 +23,11 @@ export function LanguageSelector({ variant = "header" }: LanguageSelectorProps) 
     // Update user context to sync with user profile
     updateUserContext({ language: newLanguage })
     setIsOpen(false)
+    
+    // Trigger suggested queries generation if callback provided
+    if (onLanguageChange) {
+      onLanguageChange()
+    }
   }
 
   if (variant === "settings") {

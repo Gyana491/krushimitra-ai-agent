@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// Textarea import removed (unused)
+import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -48,7 +48,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
     if (typeof mc === 'string') return mc.split(/[;,]/).map(c => c.trim()).filter(Boolean);
     return [];
   };
-  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops);
+  const initialMainCrops: string[] = normalizeCrops(userData.mainCrops as any);
 
   const [farmEditData, setFarmEditData] = useState({
     farmType: userData.farmType,
@@ -85,7 +85,7 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
       farmType: userData.farmType,
       farmSize: userData.farmSize,
       experience: userData.experience,
-  mainCrops: normalizeCrops(userData.mainCrops),
+  mainCrops: normalizeCrops(userData.mainCrops as any),
       
     })
     setIsFarmEditing(false)
@@ -408,23 +408,17 @@ export function UserProfile({ userData, onUpdate }: UserProfileProps) {
                 // Clear all data functionality
                 if (window.confirm("Are you sure? This action cannot be undone.")) {
                   try {
-                    console.log('Starting data clearance...');
-                    
                     // Clear IndexedDB data
                     await chatDB.clearAllThreads()
                     await chatDB.clearSuggestedQueries()
                     console.log('IndexedDB cleared successfully')
-                    
-                    // Clear localStorage
-                    localStorage.clear()
-                    console.log('localStorage cleared successfully')
-                    
-                    // Reload page
-                    window.location.reload()
                   } catch (error) {
-                    console.error('Error clearing data:', error)
-                    alert('Error clearing some data. Please try again.')
+                    console.error('Error clearing IndexedDB:', error)
                   }
+                  
+                  // Clear localStorage
+                  localStorage.clear()
+                  window.location.reload()
                 }
               }} className="w-full max-w-xs">
                 <Trash2 className="w-4 h-4 mr-2" />

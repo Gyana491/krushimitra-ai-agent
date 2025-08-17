@@ -2,196 +2,107 @@ import { NextRequest, NextResponse } from 'next/server';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
-  content: string | { type: string; [key: string]: unknown }[]; // Properly typed to handle both string and structured content
+  content: string | { type: string; [key: string]: unknown }[];
   id?: string;
-}
-
-// Minimal shape for Sarvam API response choices
-interface SarvamChoice {
-  message?: { content?: string };
-  [key: string]: unknown; // allow extra fields without using 'any'
-}
-
-// Always return between MIN and MAX suggestions
-const MIN_SUGGESTIONS = 3;
-const MAX_SUGGESTIONS = 4;
-
-// Simple in-memory rate limiting
-const requestCounts = new Map<string, { count: number; resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 5; // 5 requests per minute per IP
-
-// Simple cache to reduce API calls
-const suggestionCache = new Map<string, { queries: string[]; timestamp: number }>();
-const CACHE_DURATION = 300000; // 5 minutes
-
-function getCacheKey(messages: ChatMessage[]): string {
-  try {
-    const lastMessages = messages
-      .slice(-4)
-      .map(m => `${m.role}:${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`)
-      .join('|');
-    // Use Buffer to handle utf-8 safely
-    return Buffer.from(lastMessages, 'utf-8').toString('base64').replace(/=+$/, '').slice(0, 48);
-  } catch {
-    // Fallback simple hash
-    let hash = 0;
-    const text = messages.slice(-4).map(m => (typeof m.content === 'string' ? m.content : '')).join('|');
-    for (let i = 0; i < text.length; i++) {
-      hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-    }
-    return hash.toString(16);
-  }
-}
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = requestCounts.get(ip);
-  
-  if (!record || now > record.resetTime) {
-    requestCounts.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  
-  if (record.count >= MAX_REQUESTS_PER_WINDOW) {
-    return false;
-  }
-  
-  record.count++;
-  return true;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // Rate limiting
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const ip = forwardedFor ? forwardedFor.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-    if (!checkRateLimit(ip)) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded. Please wait before making more requests.' }, 
-        { status: 429 }
-      );
+    const { messages, userProfile, locationContext } = await req.json();
+
+    console.log('=== SUGGESTED QUERIES API START ===');
+    console.log('Received messages count:', messages?.length);
+    console.log('Messages payload:', messages?.map((m: any) => ({ role: m.role, contentLength: m.content?.length })));
+    console.log('User profile available:', !!userProfile);
+    if (userProfile) {
+      console.log('User context:', {
+        name: userProfile.name,
+        language: userProfile.language,
+        experience: userProfile.experience,
+        farmType: userProfile.farmType,
+        mainCrops: userProfile.mainCrops || userProfile.mainCropsJoined
+      });
     }
+    console.log('Location context available:', !!locationContext);
 
-    const { messages } = await req.json();
-
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+      console.error('Invalid messages payload');
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
     }
 
-    // Check cache first
-    const cacheKey = getCacheKey(messages);
-    const cached = suggestionCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-      console.log('Returning cached suggestions');
-      return NextResponse.json({ 
-        suggestedQueries: cached.queries,
-        success: true,
-        cached: true
-      });
+    // Early validation - we need at least a user and assistant message
+    if (messages.length < 2 || !messages.some(m => m.role === 'user') || !messages.some(m => m.role === 'assistant')) {
+      console.log('Insufficient context for suggestions - need both user and assistant messages');
+      return NextResponse.json({ suggestedQueries: [], success: true, fallback: true });
     }
 
     // Get the Sarvam API key from environment variables
     const apiKey = process.env.SARVAM_API_KEY;
+    console.log('Sarvam API key available:', !!apiKey);
     if (!apiKey) {
+      console.error('Sarvam API key not configured');
       return NextResponse.json({ error: 'Sarvam API key not configured' }, { status: 500 });
     }
 
-    // Prepare (and lightly truncate) the conversation context for query generation
-    const MAX_PER_MESSAGE_CHARS = 1200; // keep payload reasonable to avoid 400s from upstream
+    // Prepare the minimal conversation context for query generation (just last exchange)
     const conversationContext = messages
-      .slice(-6)
       .map((msg: ChatMessage) => {
         let raw = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
-        if (raw.length > MAX_PER_MESSAGE_CHARS) raw = raw.slice(-MAX_PER_MESSAGE_CHARS); // take tail (recent)
+        // No need to truncate much since we only have 2 messages max
+        if (raw.length > 500) raw = raw.slice(0, 500) + '...'; 
         return `${msg.role}: ${raw}`;
       })
       .join('\n');
 
     // Create system prompt for generating suggested queries
-    const systemPrompt = `You are an expert agricultural assistant that generates highly relevant follow-up questions for farmers based on their conversation context.
+    const userInfo = userProfile || locationContext ? `
+USER PROFILE:
+${userProfile ? `- Name: ${userProfile.name || 'Not specified'}
+- Language: ${userProfile.language || 'Not specified'}
+- Experience: ${userProfile.experience || 'Not specified'}
+- Farm Type: ${userProfile.farmType || 'Not specified'}
+- Farm Size: ${userProfile.farmSize || 'Not specified'}
+- Main Crops: ${userProfile.mainCrops || userProfile.mainCropsJoined || 'Not specified'}` : ''}
+${locationContext ? `- Location: ${locationContext.address || 'Not specified'}
+- City: ${locationContext.cityName || 'Not specified'}  
+- State: ${locationContext.stateName || 'Not specified'}
+- Farm Area: ${locationContext.areaSizeAcres || 'Not specified'}
+- Coordinates: ${locationContext.latitude ? `${locationContext.latitude}, ${locationContext.longitude}` : 'Not specified'}` : ''}
 
-CORE PRINCIPLES:
-1. Generate questions that farmers would ACTUALLY ask next in their situation
-2. Focus on PRACTICAL, ACTIONABLE follow-ups that help farmers make decisions
-3. Consider the farming context: crop type, season, location, current problem, weather conditions
-4. Build on the assistant's last advice to go deeper into implementation
+Use this profile to make suggestions specific to their crops, experience level, location and farm context.
+` : '';
 
-QUESTION GENERATION STRATEGY:
-- IMPLEMENTATION: "How exactly do I do this?" "What materials do I need?" "When should I start?"
-- RISK PREVENTION: "What could go wrong?" "How do I prevent problems?" "What signs should I watch for?"
-- TIMING: "When is the best time?" "How long will this take?" "What's the deadline?"
-- ALTERNATIVES: "What if this doesn't work?" "Are there other options?" "What's cheaper/easier?"
-- QUANTIFICATION: "How much do I need?" "What's the cost?" "How many days/weeks?"
-- EVIDENCE: "How do I know it's working?" "What results should I expect?" "How do other farmers do this?"
+  const systemPrompt = `Generate exactly 4 farming follow-up questions based on the recent conversation exchange.
+${userInfo}
+Requirements:
+- Same language as the user message${userProfile?.language ? ` (${userProfile.language})` : ''}
+- Build on the assistant's advice with deeper/practical questions
+- From farmer's perspective (what would they ask next)
+- Each question 10-25 words, specific and actionable
+- Consider user's crops (${userProfile?.mainCrops || userProfile?.mainCropsJoined || 'general'}), experience level, and location
 
-CONTEXT ANALYSIS:
-- Identify: Current crop, farming stage, location, weather concern, specific problem mentioned
-- Understand: What advice was just given, what the farmer is trying to achieve
-- Consider: Immediate next steps, potential complications, resource needs
-
-LANGUAGE RULES:
-- Use the SAME language as the farmer's last message
-- If conversation is mixed languages, match the most recent user message
-- Keep questions natural and conversational, like a farmer would actually ask
-- Use farming terminology appropriate to the region
-
-QUESTION QUALITY:
-- Make each question DISTINCT and serve a different purpose
-- Avoid generic questions - be specific to the farming situation
-- Focus on the farmer's immediate concerns and next decisions
-- Each question should help the farmer take concrete action
-
-OUTPUT FORMAT: Return ONLY a JSON array of 3-4 questions, nothing else.
-Example: ["How much fertilizer per acre?", "When do I apply it?", "What if it rains after application?"]`;
+Return ONLY a valid JSON array of 4 strings.
+Example: ["কি সার দেব?", "কখন রোপণ করব?", "দাম কত?", "রোগ হলে কি করব?"]`;
 
     // Prepare messages for Sarvam API
     const apiMessages = [
       { content: systemPrompt, role: 'system' },
-      { 
-        content: `CONVERSATION CONTEXT:
-${conversationContext}
-
-TASK: Analyze this farming conversation and generate 3-4 highly relevant follow-up questions that this farmer would naturally ask next.
-
-ANALYSIS CHECKLIST:
-- What crop/farming issue is being discussed?
-- What specific advice was just given by the assistant?
-- What would the farmer need to know to implement this advice?
-- What practical concerns or next steps would they have?
-- What evidence or validation would they want?
-
-Generate questions that help the farmer:
-1. Understand HOW to implement the advice
-2. Know WHEN to take action
-3. Prepare for potential PROBLEMS
-4. Understand the COSTS or RESOURCES needed
-
-Return ONLY the JSON array with 3-4 questions.`, 
-        role: 'user' 
-      }
+      { content: `Context:\n${conversationContext}\n\nJSON array:`, role: 'user' }
     ];
 
-    // Utility: promise timeout
-    const fetchWithTimeout = async (url: string, opts: RequestInit & { timeout?: number }) => {
-      const { timeout = 12000, ...rest } = opts;
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), timeout);
-      try {
-        return await fetch(url, { ...rest, signal: controller.signal });
-      } finally {
-        clearTimeout(t);
-      }
-    };
+    console.log('Conversation context length:', conversationContext.length);
+    console.log('System prompt length:', systemPrompt.length);
+    console.log('API messages prepared:', apiMessages.length, 'messages');
 
-    // Call Sarvam AI API with retry logic + timeout
-    let response: Response | undefined;
+    // Call Sarvam AI API with retry logic
+  let response: Response | undefined;
     let attempt = 0;
     const maxRetries = 2;
     
     while (attempt <= maxRetries) {
       try {
-        response = await fetchWithTimeout('https://api.sarvam.ai/v1/chat/completions', {
+        console.log(`Attempt ${attempt + 1}/${maxRetries + 1} - Calling Sarvam API...`);
+        response = await fetch('https://api.sarvam.ai/v1/chat/completions', {
           method: 'POST',
           headers: {
             'api-subscription-key': apiKey,
@@ -199,10 +110,12 @@ Return ONLY the JSON array with 3-4 questions.`,
           },
           body: JSON.stringify({
             messages: apiMessages,
-            model: 'sarvam-m'
-          }),
-          timeout: 10000 + attempt * 3000
+            model: 'sarvam-m',
+            max_tokens: 1000,
+            temperature: 0.7
+          })
         });
+        console.log('Sarvam API response status:', response.status, response.statusText);
         if (response.ok) {
           break; // Success, exit retry loop
         }
@@ -236,7 +149,7 @@ Return ONLY the JSON array with 3-4 questions.`,
       }
     }
 
-    // Enhanced heuristic fallback function with better context analysis
+    // Heuristic fallback function if upstream fails
     const buildHeuristic = (): string[] => {
       try {
         const lastUser = [...messages].reverse().find(m => m.role === 'user');
@@ -253,54 +166,38 @@ Return ONLY the JSON array with 3-4 questions.`,
           if (!queries.includes(q) && queries.length < 4) queries.push(q);
         };
 
-        // Extract farming context
-        const cropMatch = raw.match(/(pyaaj|प्याज|onion|tomato|टमाटर|wheat|गेहूं|rice|धान|potato|आलू)/i);
+        const cropMatch = raw.match(/(pyaaj|प्याज|onion)/i);
         const cropRef = cropMatch ? cropMatch[0] : '';
-        
-        // Check for specific farming activities mentioned
-        const hasWeather = lower.includes('मौसम') || lower.includes('weather') || lower.includes('rain') || lower.includes('बारिश');
-        const hasPest = lower.includes('pest') || lower.includes('disease') || lower.includes('रोग') || lower.includes('कीट');
-        const hasPrice = lower.includes('price') || lower.includes('मंडी') || lower.includes('sell') || lower.includes('बेच');
-        const hasFertilizer = lower.includes('fertilizer') || lower.includes('खाद') || lower.includes('उर्वरक');
 
         if (isHindi) {
-          if (hasWeather) add('मौसम के हिसाब से अभी सबसे जरूरी काम कौन सा है?');
-          if (hasPest && cropRef) add(`${cropRef} में रोग की पहचान कैसे करूं?`);
-          if (hasPrice) add('अभी बेचना ठीक है या कुछ दिन और इंतजार करूं?');
-          if (hasFertilizer) add('यह खाद कितनी मात्रा में डालनी चाहिए?');
-          if (cropRef && !hasPest) add(`${cropRef} की देखभाल में अभी कौन सी गलती न करूं?`);
-          add('इस सलाह को फॉलो करने में कितना खर्च आएगा?');
-          add('कितने दिन में नतीजा दिखने लगेगा?');
+          if (lower.includes('मौसम') || lower.includes('weather')) add('अगले 3 दिनों के मौसम को देखते हुए अभी क्या तैयारी करूँ?');
+          if (cropRef) add(`${cropRef.includes('प्याज') ? 'प्याज' : 'फसल'} में रोग से बचाव के लिए अगला कदम क्या है?`);
+          if (lower.includes('जल निकासी') || lower.includes('drain')) add('जल निकासी बेहतर करने का सबसे त्वरित समाधान क्या है?');
+          add('अगर बारिश जारी रही तो नुकसान कम कैसे करूँ?');
         } else if (isOdia) {
-          if (hasWeather) add('ପାଗ ଅନୁସାରେ ବର୍ତ୍ତମାନ ସବୁଠୁ ଜରୁରୀ କାମ କଣ?');
-          if (hasPest && cropRef) add('ଫସଲରେ ରୋଗର ଚିହ୍ନ କେମିତି ଚିହ୍ନିବି?');
-          if (hasPrice) add('ବର୍ତ୍ତମାନ ବିକିବା ଭଲ ନା ଆଉ କିଛି ଦିନ ଅପେକ୍ଷା କରିବି?');
-          if (hasFertilizer) add('ଏହି ସାର କେତେ ମାତ୍ରାରେ ଦେବି?');
-          add('ଏହି ପରାମର୍ଶ ଫଲୋ କରିବାକୁ କେତେ ଖର୍ଚ୍ଚ ହେବ?');
-          add('କେତେ ଦିନରେ ଫଳାଫଳ ଦେଖିବାକୁ ମିଳିବ?');
+          if (lower.includes('ପାଗ') || lower.includes('weather')) add('ଆସନ୍ତା ୩ ଦିନ ପାଗ ଦେଖି କଣ ପ୍ରସ୍ତୁତି କରିବି?');
+          if (cropRef) add('ପିଆଜ ରୋଗ ରୋକଥାମ ପାଇଁ ବର୍ତ୍ତମାନ କଣ କରିବି?');
+          if (lower.includes('drain') || /ନିସ୍ସରଣ/.test(raw)) add('ଜଳ ନିସ୍ସରଣ ଶୀଘ୍ର କେମିତି ସୁଧାରିବି?');
+          add('ଲମ୍ବା ବର୍ଷାର ପ୍ରଭାବ କେମିତି କମେଇବି?');
         } else {
-          if (hasWeather) add('What\'s the most urgent task based on current weather?');
-          if (hasPest && cropRef) add(`How do I identify early signs of disease in ${cropRef}?`);
-          if (hasPrice) add('Should I sell now or wait for better prices?');
-          if (hasFertilizer) add('What\'s the exact application rate for this fertilizer?');
-          if (cropRef && !hasPest) add(`What mistakes should I avoid with ${cropRef} right now?`);
-          add('How much will it cost to implement this advice?');
-          add('How long before I see results?');
-          add('What if the weather changes suddenly?');
+          if (lower.includes('weather') || lower.includes('forecast')) add('Given the next 3 days forecast what should I prepare first?');
+            if (cropRef) add(`How do I prevent disease pressure in my ${cropRef.toLowerCase().includes('onion') ? 'onion' : 'crop'} right now?`);
+          if (lower.includes('drain')) add('What is the quickest low-cost way to improve drainage?');
+          add('If rain continues how do I reduce losses?');
         }
 
         return queries.slice(0,4);
       } catch {
         return [
-          'How do I implement this step by step?',
-          'What materials do I need for this?',
-          'When is the best time to start?',
-          'How much will this cost me?'
+          'अगला सवाल क्या पूछूँ?',
+          'फसल देखभाल के लिए अभी कौन सा कदम प्राथमिक है?',
+          'मौसम जोखिम कम करने के उपाय क्या हैं?'
         ];
       }
     };
 
     if (!response) {
+      console.log('No response from Sarvam API after retries, using heuristic fallback');
       const fallbackQueries = buildHeuristic();
       return NextResponse.json({ suggestedQueries: fallbackQueries, success: true, fallback: true });
     }
@@ -308,6 +205,7 @@ Return ONLY the JSON array with 3-4 questions.`,
     if (!response.ok) {
       // Upstream failure after retries -> return heuristic suggestions with diagnostic info
       const upstreamBody = await response.text().catch(() => '');
+      console.log('Sarvam API failed with status:', response.status, 'Body:', upstreamBody.slice(0, 500));
       const fallbackQueries = buildHeuristic();
       return NextResponse.json({
         suggestedQueries: fallbackQueries,
@@ -318,115 +216,121 @@ Return ONLY the JSON array with 3-4 questions.`,
       }, { status: 200 });
     }
 
-    let generatedContent: string | undefined;
-    try {
-      const data: { choices?: SarvamChoice[] } = await response.json();
-      generatedContent = data.choices?.[0]?.message?.content;
-      if (!generatedContent && Array.isArray(data.choices)) {
-        // Try alternative shapes
-        generatedContent = data.choices
-          .map((c: SarvamChoice) => c?.message?.content)
-          .filter((v): v is string => Boolean(v))
-          .join('\n');
-      }
-    } catch (e) {
-      console.warn('Failed parsing primary response JSON, using fallback heuristic', e);
-    }
+    const data = await response.json();
+    console.log('Sarvam API response data:', data);
+    const generatedContent = data.choices?.[0]?.message?.content;
+    console.log('Generated content from Sarvam:', generatedContent);
 
     if (!generatedContent) {
-      console.warn('No content generated from Sarvam AI, switching to heuristic');
+      console.log('No content generated from Sarvam AI, using heuristic fallback');
       const fallbackQueries = buildHeuristic();
-      return NextResponse.json({ suggestedQueries: fallbackQueries, success: true, fallback: true, reason: 'empty_upstream' });
+      return NextResponse.json({ suggestedQueries: fallbackQueries, success: true, fallback: true });
     }
 
-    // Parse the JSON response
+    // Parse the JSON response with enhanced error handling
     let suggestedQueries: string[] = [];
     try {
-      const cleaned = generatedContent.trim();
-      // Attempt direct JSON parse first
-      if (cleaned.startsWith('[')) {
-        suggestedQueries = JSON.parse(cleaned);
-      } else {
-        // Extract first JSON array substring
-        const match = cleaned.match(/\[[\s\S]*?\]/);
-        if (match) {
-          suggestedQueries = JSON.parse(match[0]);
-        } else {
-          throw new Error('No JSON array found');
+      const cleaned = generatedContent.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ');
+      console.log('Cleaning generated content:', cleaned.slice(0, 300));
+      
+      // Enhanced JSON parsing with multiple strategies
+      let parsedQueries: string[] = [];
+      
+      // Strategy 1: Direct JSON parse
+      try {
+        if (cleaned.startsWith('[') && cleaned.endsWith(']')) {
+          parsedQueries = JSON.parse(cleaned);
+          console.log('Strategy 1 (Direct JSON) succeeded:', parsedQueries.length, 'queries');
+        }
+      } catch (directError) {
+        console.log('Strategy 1 (Direct JSON) failed:', directError instanceof Error ? directError.message : 'Unknown error');
+        
+        // Strategy 2: Extract and fix JSON array
+        try {
+          const arrayMatch = cleaned.match(/\[.*\]/);
+          if (arrayMatch) {
+            let jsonStr = arrayMatch[0];
+            // Fix common JSON issues
+            jsonStr = jsonStr.replace(/,\s*]/g, ']'); // Remove trailing commas
+            jsonStr = jsonStr.replace(/"\s*,\s*"/g, '", "'); // Fix spacing around commas
+            jsonStr = jsonStr.replace(/([^"]),\s*"([^"]*)"(?!\s*[,\]])/g, '$1, "$2"'); // Fix missing quotes
+            
+            parsedQueries = JSON.parse(jsonStr);
+            console.log('Strategy 2 (Fixed JSON) succeeded:', parsedQueries.length, 'queries');
+          }
+        } catch (fixedError) {
+          console.log('Strategy 2 (Fixed JSON) failed:', fixedError instanceof Error ? fixedError.message : 'Unknown error');
+          
+          // Strategy 3: Extract individual quoted strings with question marks
+          const questionMatches = cleaned.match(/"[^"]*[?？][^"]*"/g);
+          if (questionMatches && questionMatches.length > 0) {
+            parsedQueries = questionMatches
+              .map((match: string) => match.slice(1, -1).trim()) // Remove quotes and trim
+              .filter((q: string) => q.length > 5 && q.includes('?')); // Quality filter
+            console.log('Strategy 3 (Question extraction) found:', parsedQueries.length, 'queries');
+          } else {
+            // Strategy 4: Handle truncated responses - extract partial but complete questions
+            const partialMatches = cleaned.match(/"[^"]*?[?？][^"]*?"/g) || 
+                                 cleaned.match(/([^\[\]",]{10,}[?？])/g);
+            if (partialMatches) {
+              parsedQueries = partialMatches
+                .map((match: string) => match.replace(/^["'\s]+|["'\s]+$/g, '').trim())
+                .filter((q: string) => q.length > 8 && (q.includes('?') || q.includes('？')))
+                .slice(0, 4);
+              console.log('Strategy 4 (Partial extraction) found:', parsedQueries.length, 'queries');
+            }
+          }
         }
       }
-    } catch {
-      // Enhanced heuristic fallback
-      suggestedQueries = generatedContent
-        .split(/\n|\r/)
-        .map((l: string) => l.trim())
-        .filter((l: string) => {
-          // More intelligent filtering for farming questions
-          return l.length > 0 && 
-                 (l.endsWith('?') || /\?$/.test(l)) &&
-                 !l.toLowerCase().includes('question') &&
-                 !l.match(/^[0-9]+\./) && // Remove numbered lists
-                 l.length > 10; // Avoid too short questions
-        })
-        .slice(0, 4);
-
-      // If still no good questions, use the enhanced heuristic
-      if (suggestedQueries.length === 0) {
-        suggestedQueries = buildHeuristic();
+      
+      // Quality validation and cleanup
+      if (parsedQueries && Array.isArray(parsedQueries)) {
+        suggestedQueries = parsedQueries
+          .filter((q: any) => typeof q === 'string' && q.trim().length > 5)
+          .map((q: string) => q.trim())
+          .filter((q: string) => q.includes('?') || q.includes('？'))
+          .slice(0, 4); // Ensure max 4 questions
+        
+        console.log('Final validated queries:', suggestedQueries.length);
       }
-    }
-
-    // Validate and clean queries with better filtering
-    // Ensure minimum number of quality queries
-    const ensureMinimum = (current: string[]): string[] => {
-      if (current.length >= MIN_SUGGESTIONS) return current.slice(0, MAX_SUGGESTIONS);
-      // Use heuristic to supplement
-      const supplemental = buildHeuristic();
-      const merged: string[] = [];
-      const seen = new Set<string>();
-      [...current, ...supplemental].forEach(q => {
-        const cleaned = q.trim();
-        if (!seen.has(cleaned) && cleaned.length >= 5) {
-          seen.add(cleaned);
-          merged.push(cleaned);
+      
+      console.log('Parsed suggested queries:', suggestedQueries);
+    } catch (parseError) {
+      console.log('JSON parsing failed:', parseError, 'Using enhanced fallback');
+      
+      // Enhanced fallback - look for question patterns in any format
+      const questionPatterns = [
+        // Odia/Hindi question patterns
+        /([^\n"]{10,}[?？])/g,
+        // Line-based extraction
+        /^[^"]*([^"]{10,}[?？])[^"]*$/gm
+      ];
+      
+      for (const pattern of questionPatterns) {
+        const matches = generatedContent.match(pattern);
+        if (matches && matches.length > 0) {
+          suggestedQueries = matches
+            .map((m: string) => m.trim().replace(/^["'\s]+|["'\s]+$/g, ''))
+            .filter((q: string) => q.length > 5 && q.includes('?'))
+            .slice(0, 4);
+          if (suggestedQueries.length > 0) break;
         }
-      });
-      return merged.slice(0, MAX_SUGGESTIONS);
-    };
-
-    const validQueries = ensureMinimum(
-      suggestedQueries
-        .filter((query: string) => {
-          if (!query || query.trim().length < 5) return false;
-          const cleaned = query.trim();
-          // Remove generic or low-quality questions
-          const lowQuality = [
-            'what else', 'anything else', 'other questions', 'more info',
-            'tell me more', 'क्या और', 'और क्या', 'अन्य प्रश्न'
-          ];
-          return !lowQuality.some(lq => cleaned.toLowerCase().includes(lq));
-        })
-        .map((query: string) => {
-          // Clean up formatting
-          return query.trim().replace(/^[0-9]+\.?\s*/, '').replace(/^[-•]\s*/, '');
-        })
-        .slice(0, MAX_SUGGESTIONS)
-    );
-
-    // Cache only if we have at least the minimum number
-    if (validQueries.length >= MIN_SUGGESTIONS) {
-      suggestionCache.set(cacheKey, {
-        queries: validQueries,
-        timestamp: Date.now()
-      });
+      }
+      
+      console.log('Enhanced fallback queries:', suggestedQueries);
     }
 
+    // Validate and clean queries
+    const validQueries = suggestedQueries
+      .filter((query: string) => query && query.trim().length > 0)
+      .slice(0, 4);
+
+    console.log('Final valid queries:', validQueries);
+
+    console.log('=== SUGGESTED QUERIES API END ===');
     return NextResponse.json({ 
       suggestedQueries: validQueries,
-      success: true,
-      count: validQueries.length,
-      fromCache: false,
-      reliability: validQueries.length >= MIN_SUGGESTIONS ? 'stable' : 'degraded'
+      success: true
     });
 
   } catch (error) {

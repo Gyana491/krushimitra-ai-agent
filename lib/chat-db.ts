@@ -6,7 +6,7 @@ const THREADS_STORE = 'chatThreads';
 const SUGGESTED_QUERIES_STORE = 'suggestedQueries';
 
 interface SuggestedQueries {
-  id: string; // 'global' for global queries
+  id: string; // thread id, 'onboarding', or legacy 'global'
   queries: string[];
   lastUpdated: string;
   contextHash: string;
@@ -176,15 +176,13 @@ class ChatDatabase {
   }
 
   async clearAllThreads(): Promise<void> {
-    await this.initPromise;
-    
+    const db = await this.ensureDB();
     return new Promise((resolve, reject) => {
-      const transaction = this.db!.transaction([THREADS_STORE], 'readwrite');
+      const transaction = db.transaction([THREADS_STORE], 'readwrite');
       const store = transaction.objectStore(THREADS_STORE);
       const request = store.clear();
 
       request.onsuccess = () => {
-        console.log('Successfully cleared all threads from IndexedDB');
         resolve();
       };
 
@@ -243,26 +241,23 @@ class ChatDatabase {
   }
 
   // Suggested Queries methods
-  async saveSuggestedQueries(queries: string[], contextHash: string): Promise<void> {
+  async saveSuggestedQueries(queries: string[], contextHash: string, id: string = 'global'): Promise<void> {
     await this.initPromise;
-    
+
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([SUGGESTED_QUERIES_STORE], 'readwrite');
       const store = transaction.objectStore(SUGGESTED_QUERIES_STORE);
-      
+
       const suggestedQueries: SuggestedQueries = {
-        id: 'global',
+        id,
         queries,
         lastUpdated: new Date().toISOString(),
         contextHash
       };
-      
+
       const request = store.put(suggestedQueries);
-      
-      request.onsuccess = () => {
-        resolve();
-      };
-      
+
+      request.onsuccess = () => resolve();
       request.onerror = () => {
         console.error('Error saving suggested queries:', request.error);
         reject(request.error);
@@ -270,18 +265,23 @@ class ChatDatabase {
     });
   }
 
-  async getSuggestedQueries(): Promise<SuggestedQueries | null> {
+  async getSuggestedQueries(id: string = 'global'): Promise<SuggestedQueries | null> {
     await this.initPromise;
-    
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([SUGGESTED_QUERIES_STORE], 'readonly');
       const store = transaction.objectStore(SUGGESTED_QUERIES_STORE);
-      const request = store.get('global');
-      
+      const request = store.get(id);
+
       request.onsuccess = () => {
-        resolve(request.result || null);
+        // Fallback: if specific id missing and not already trying global, try legacy 'global'
+        if (!request.result && id !== 'global') {
+          const legacyReq = store.get('global');
+          legacyReq.onsuccess = () => resolve(legacyReq.result || null);
+          legacyReq.onerror = () => resolve(null);
+        } else {
+          resolve(request.result || null);
+        }
       };
-      
       request.onerror = () => {
         console.error('Error getting suggested queries:', request.error);
         reject(request.error);
@@ -289,19 +289,18 @@ class ChatDatabase {
     });
   }
 
-  async clearSuggestedQueries(): Promise<void> {
+  async clearSuggestedQueries(id?: string): Promise<void> {
     await this.initPromise;
-    
     return new Promise((resolve, reject) => {
       const transaction = this.db!.transaction([SUGGESTED_QUERIES_STORE], 'readwrite');
       const store = transaction.objectStore(SUGGESTED_QUERIES_STORE);
-      const request = store.clear();
-      
-      request.onsuccess = () => {
-        console.log('Successfully cleared all suggested queries from IndexedDB');
-        resolve();
-      };
-      
+      let request: IDBRequest;
+      if (id) {
+        request = store.delete(id);
+      } else {
+        request = store.clear();
+      }
+      request.onsuccess = () => resolve();
       request.onerror = () => {
         console.error('Error clearing suggested queries:', request.error);
         reject(request.error);
@@ -318,7 +317,8 @@ class ChatDatabase {
         if (parsedQueries && Array.isArray(parsedQueries.queries)) {
           await this.saveSuggestedQueries(
             parsedQueries.queries,
-            parsedQueries.contextHash || ''
+            parsedQueries.contextHash || '',
+            'global'
           );
           console.log('Migrated suggested queries from localStorage to IndexedDB');
           

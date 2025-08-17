@@ -5,30 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin } from 'lucide-react'
 
-// Minimal structural typings for Google Maps Places API objects we use
-type GooglePlace = {
-  formatted_address?: string;
-  geometry?: { location?: { lat(): number; lng(): number } };
-  address_components?: Array<{ long_name: string; types: string[] }>;
-};
-
-interface GoogleAutocomplete {
-  addListener(eventName: 'place_changed', callback: () => void): void;
-  getPlace(): GooglePlace;
-}
-
-declare const google: {
-  maps: {
-    places: {
-      Autocomplete: new (
-        input: HTMLInputElement,
-        opts: { types: string[]; fields: string[] }
-      ) => GoogleAutocomplete;
-    };
-  };
-};
-
-// Note: We avoid augmenting Window typing for google to prevent conflicts; runtime checks use optional chaining.
+declare const google: any
 
 export interface SelectedLocationData { address: string; latitude: number; longitude: number; cityName?: string; stateName?: string; country?: string }
 interface GoogleLocationPickerProps { value?: string; onChange: (loc: SelectedLocationData) => void; placeholder?: string; className?: string; autoSaveToLocalStorage?: boolean }
@@ -41,7 +18,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-  if (window.google?.maps?.places) { setScriptLoaded(true); return }
+    if ((window as any).google?.maps?.places) { setScriptLoaded(true); return }
     const existing = document.getElementById('google-maps-script') as HTMLScriptElement | null
     if (existing) { existing.addEventListener('load', () => setScriptLoaded(true)); return }
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
@@ -59,39 +36,195 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
   useEffect(() => {
     if (!scriptLoaded || !inputRef.current || typeof google === 'undefined') return
     try {
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, { types: ['geocode'], fields: ['formatted_address','geometry','address_components'] })
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace(); if (!place?.geometry?.location) return
-        const lat = place.geometry.location.lat(); const lng = place.geometry.location.lng()
-        let city: string | undefined; let state: string | undefined; let country: string | undefined
-        if (place.address_components) for (const comp of place.address_components) { if (comp.types.includes('locality')) city = comp.long_name; if (comp.types.includes('administrative_area_level_1')) state = comp.long_name; if (comp.types.includes('country')) country = comp.long_name; if (!city && comp.types.includes('administrative_area_level_2')) city = comp.long_name }
-        const loc: SelectedLocationData = { address: place.formatted_address || inputRef.current!.value, latitude: lat, longitude: lng, cityName: city, stateName: state, country }
-        onChange(loc)
-        if (autoSaveToLocalStorage) try { localStorage.setItem('cropwise-selected-location', JSON.stringify({ address: loc.address, cityName: loc.cityName, stateName: loc.stateName, lat: loc.latitude, lng: loc.longitude })); window.dispatchEvent(new Event('selectedLocationChanged')) } catch {}
+      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, { 
+        types: ['geocode'], 
+        fields: ['formatted_address', 'geometry', 'address_components', 'place_id']
       })
-    } catch { setError('Autocomplete failed to initialize') }
+      
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace()
+        if (!place?.geometry?.location) return
+        
+        const lat = place.geometry.location.lat()
+        const lng = place.geometry.location.lng()
+        
+        let city: string | undefined
+        let state: string | undefined 
+        let country: string | undefined
+        let postalCode: string | undefined
+        
+        // Parse address components for detailed information
+        if (place.address_components) {
+          for (const comp of place.address_components) {
+            if (comp.types.includes('locality')) {
+              city = comp.long_name
+            }
+            if (comp.types.includes('administrative_area_level_1')) {
+              state = comp.long_name
+            }
+            if (comp.types.includes('country')) {
+              country = comp.long_name
+            }
+            if (comp.types.includes('postal_code')) {
+              postalCode = comp.long_name
+            }
+            // Fallback for city if locality not found
+            if (!city && comp.types.includes('administrative_area_level_2')) {
+              city = comp.long_name
+            }
+          }
+        }
+        
+        // Use the formatted address from Google (includes complete address with postal code)
+        const completeAddress = place.formatted_address || inputRef.current!.value
+        
+        const loc: SelectedLocationData = { 
+          address: completeAddress, 
+          latitude: lat, 
+          longitude: lng, 
+          cityName: city, 
+          stateName: state, 
+          country 
+        }
+        
+        onChange(loc)
+        
+        if (autoSaveToLocalStorage) {
+          try { 
+            localStorage.setItem('cropwise-selected-location', JSON.stringify({ 
+              address: loc.address, 
+              cityName: loc.cityName, 
+              stateName: loc.stateName, 
+              lat: loc.latitude, 
+              lng: loc.longitude 
+            }))
+            window.dispatchEvent(new Event('selectedLocationChanged'))
+          } catch {}
+        }
+      })
+    } catch { 
+      setError('Autocomplete failed to initialize') 
+    }
   }, [scriptLoaded, onChange, autoSaveToLocalStorage])
 
   const handleUseGeolocation = () => {
     if (!navigator.geolocation) { setError('Geolocation not supported'); return }
     setLoading(true)
-    navigator.geolocation.getCurrentPosition(pos => { const { latitude, longitude } = pos.coords; const loc: SelectedLocationData = { address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`, latitude, longitude }; onChange(loc); setLoading(false) }, err => { setError(err.message); setLoading(false) })
+    setError(null)
+    
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords
+        
+        try {
+          // Try to get address using Google Maps Geocoding if available
+          if (scriptLoaded && typeof google !== 'undefined') {
+            const geocoder = new google.maps.Geocoder()
+            const result = await new Promise<any[]>((resolve, reject) => {
+              geocoder.geocode(
+                { location: { lat: latitude, lng: longitude } },
+                (results: any[], status: any) => {
+                  if (status === 'OK' && results?.[0]) {
+                    resolve(results)
+                  } else {
+                    reject(new Error('Geocoding failed'))
+                  }
+                }
+              )
+            })
+            
+            const place = result[0]
+            let city: string | undefined, state: string | undefined, country: string | undefined
+            
+            if (place.address_components) {
+              for (const comp of place.address_components) {
+                if (comp.types.includes('locality')) city = comp.long_name
+                if (comp.types.includes('administrative_area_level_1')) state = comp.long_name
+                if (comp.types.includes('country')) country = comp.long_name
+                if (!city && comp.types.includes('administrative_area_level_2')) city = comp.long_name
+              }
+            }
+            
+            const loc: SelectedLocationData = {
+              address: place.formatted_address,
+              latitude,
+              longitude,
+              cityName: city,
+              stateName: state,
+              country
+            }
+            
+            // Update the input field with the detected address
+            if (inputRef.current) {
+              inputRef.current.value = place.formatted_address
+            }
+            
+            onChange(loc)
+          } else {
+            // Fallback: use coordinates as address
+            const loc: SelectedLocationData = {
+              address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+              latitude,
+              longitude
+            }
+            
+            if (inputRef.current) {
+              inputRef.current.value = loc.address
+            }
+            
+            onChange(loc)
+          }
+        } catch (error) {
+          console.error('Reverse geocoding failed:', error)
+          // Fallback to coordinates
+          const loc: SelectedLocationData = {
+            address: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`,
+            latitude,
+            longitude
+          }
+          
+          if (inputRef.current) {
+            inputRef.current.value = loc.address
+          }
+          
+          onChange(loc)
+        }
+        
+        setLoading(false)
+      },
+      (err) => {
+        setError(err.message)
+        setLoading(false)
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000 // 5 minutes
+      }
+    )
   }
 
   return (
     <div className={className}>
-      <div className="flex gap-2">
-        <Input ref={inputRef} defaultValue={value} placeholder={placeholder || 'Search location'} disabled={!!error} />
-        <Button
-          type="button"
+      <div className="space-y-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Input ref={inputRef} defaultValue={value} placeholder={placeholder || 'Search location'} disabled={!!error} className="flex-1" />
+          <Button
+            type="button"
             variant="outline"
             onClick={handleUseGeolocation}
             disabled={loading}
             aria-label={loading ? 'Detecting location...' : 'Autodetect location'}
             title={loading ? 'Detecting location...' : 'Autodetect location'}
-        >
-          {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" aria-hidden="true" />}
-        </Button>
+            className="flex items-center gap-2 whitespace-nowrap"
+          >
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" aria-hidden="true" />}
+            <span>{loading ? 'Detecting...' : 'Autodetect'}</span>
+          </Button>
+        </div>
+        <div className="text-xs text-muted-foreground hidden sm:block">
+          Click "Autodetect" to use your current location or search for a location above
+        </div>
       </div>
       {!scriptLoaded && !error && <p className="text-xs text-muted-foreground mt-1">Loading map services...</p>}
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
