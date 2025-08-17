@@ -56,10 +56,11 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const updateData = <K extends keyof OnboardingData>(field: K, value: OnboardingData[K]) => {
     setData((prev) => ({ ...prev, [field]: value }))
-    if (field === "language") {
-      const languageCode = languageMap[value] || "en"
+    // Narrow for language-specific side effects
+    if (field === 'language' && typeof value === 'string') {
+      const languageCode = languageMap[value as keyof typeof languageMap] || 'en'
       changeLanguage(languageCode as Language)
-      console.log("[v0] Language updated to:", value, "->", languageCode)
+      console.log('[v0] Language updated to:', value, '->', languageCode)
     }
   }
 
@@ -230,7 +231,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
             <CropSelector
               value={data.mainCrops}
               onChange={(crops) => updateData('mainCrops', crops)}
-              translate={(key: string) => t(key)}
+              translate={(key) => t(key as Parameters<typeof t>[0])}
             />
             {data.mainCrops.length === 0 && (
               <p className="text-xs text-muted-foreground">{t('onboarding.experience.cropsPlaceholder')}</p>
