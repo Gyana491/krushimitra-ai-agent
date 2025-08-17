@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChatMessage } from './use-chat-messages';
+import { chatDB } from '../lib/chat-db';
 
 export interface ChatThread {
   id: string;
@@ -15,39 +16,65 @@ export const useChatThreads = () => {
   const [showThreadsList, setShowThreadsList] = useState(false);
   const [isPendingNewThread, setIsPendingNewThread] = useState(false);
 
-  // Load chat threads from localStorage on mount - simplified logic
+  // Load chat threads from IndexedDB on mount with migration from localStorage
   useEffect(() => {
-    const savedThreads = localStorage.getItem('farm-chat-threads');
-    
-    if (savedThreads) {
+    const loadThreads = async () => {
       try {
-        const parsedThreads = JSON.parse(savedThreads);
-        setChatThreads(parsedThreads);
+        // First, try to migrate from localStorage if this is the first time
+        await chatDB.migrateFromLocalStorage();
+        await chatDB.migrateSuggestedQueriesFromLocalStorage();
+        
+        // Then load threads from IndexedDB
+        const threads = await chatDB.getAllThreads();
+        setChatThreads(threads);
         
         // Don't automatically set any thread ID on page load
         // Keep the selection empty so user can choose or start a new chat
       } catch (error) {
-        console.error('Error loading chat threads:', error);
+        console.error('Error loading chat threads from IndexedDB:', error);
+        // Fallback to localStorage if IndexedDB fails
+        const savedThreads = localStorage.getItem('farm-chat-threads');
+        if (savedThreads) {
+          try {
+            const parsedThreads = JSON.parse(savedThreads);
+            setChatThreads(parsedThreads);
+          } catch (parseError) {
+            console.error('Error parsing localStorage threads:', parseError);
+          }
+        }
       }
-    }
+    };
+
+    loadThreads();
   }, []);
 
-  // Save threads to localStorage whenever they change - simple save logic
+  // Save threads to IndexedDB whenever they change
   useEffect(() => {
-    if (chatThreads.length > 0) {
-      // Filter out any threads that have no messages before saving
-      const threadsWithMessages = chatThreads.filter(thread => thread.messages && thread.messages.length > 0);
-      
-      if (threadsWithMessages.length > 0) {
-        localStorage.setItem('farm-chat-threads', JSON.stringify(threadsWithMessages));
-      } else {
-        localStorage.removeItem('farm-chat-threads');
+    const saveThreads = async () => {
+      if (chatThreads.length > 0) {
+        try {
+          // Filter out any threads that have no messages before saving
+          const threadsWithMessages = chatThreads.filter(thread => thread.messages && thread.messages.length > 0);
+          
+          if (threadsWithMessages.length > 0) {
+            await chatDB.saveThreads(threadsWithMessages);
+          }
+        } catch (error) {
+          console.error('Error saving threads to IndexedDB:', error);
+          // Fallback to localStorage on IndexedDB error
+          const threadsWithMessages = chatThreads.filter(thread => thread.messages && thread.messages.length > 0);
+          if (threadsWithMessages.length > 0) {
+            localStorage.setItem('farm-chat-threads', JSON.stringify(threadsWithMessages));
+          }
+        }
       }
-    } else {
-      localStorage.removeItem('farm-chat-threads');
+    };
+
+    // Don't save empty thread arrays, and debounce saves
+    if (chatThreads.length > 0) {
+      const timeoutId = setTimeout(saveThreads, 100);
+      return () => clearTimeout(timeoutId);
     }
-    
-    // Don't persist current thread ID - start fresh each page load
   }, [chatThreads]);
 
   // Create a new thread ID in memory but do NOT add it to the threads list until it has messages
@@ -112,7 +139,14 @@ export const useChatThreads = () => {
     return null;
   }, [chatThreads]);
 
-  const deleteThread = useCallback((threadId: string) => {
+  const deleteThread = useCallback(async (threadId: string) => {
+    try {
+      // Delete from IndexedDB first
+      await chatDB.deleteThread(threadId);
+    } catch (error) {
+      console.error('Error deleting thread from IndexedDB:', error);
+    }
+
     setChatThreads(prev => {
       const updatedThreads = prev.filter(t => t.id !== threadId);
       return updatedThreads;
@@ -162,8 +196,13 @@ export const useChatThreads = () => {
         // Add new thread to beginning of list
         const updatedThreads = [newThread, ...prev];
         
-        // Save immediately
-        localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+        // Save to IndexedDB immediately (async)
+        chatDB.saveThread(newThread).catch(error => {
+          console.error('Error saving new thread to IndexedDB:', error);
+          // Fallback to localStorage
+          localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+        });
+        
         return updatedThreads;
       });
       return;
@@ -210,8 +249,15 @@ export const useChatThreads = () => {
         updatedThreads = [newThread, ...prev];
       }
       
-      // Save immediately
-      localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+      // Save to IndexedDB immediately (async)
+      if (updatedThreads.length > 0) {
+        chatDB.saveThreads(updatedThreads).catch(error => {
+          console.error('Error saving threads to IndexedDB:', error);
+          // Fallback to localStorage
+          localStorage.setItem('farm-chat-threads', JSON.stringify(updatedThreads));
+        });
+      }
+      
       return updatedThreads;
     });
   }, [currentThreadId, createNewThread]);
@@ -221,25 +267,43 @@ export const useChatThreads = () => {
     setIsPendingNewThread(false);
   }, []);
 
-  const exportThreads = useCallback(() => {
-    const dataStr = JSON.stringify(chatThreads, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `farm-chat-backup-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
+  const exportThreads = useCallback(async () => {
+    try {
+      const threads = await chatDB.exportThreads();
+      const dataStr = JSON.stringify(threads, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `farm-chat-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting threads:', error);
+      // Fallback to current state
+      const dataStr = JSON.stringify(chatThreads, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `farm-chat-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
   }, [chatThreads]);
 
-  const importThreads = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  const importThreads = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         try {
           const importedThreads = JSON.parse(e.target?.result as string);
           if (Array.isArray(importedThreads)) {
+            // Import to IndexedDB
+            await chatDB.importThreads(importedThreads);
+            
+            // Update local state
             setChatThreads(prev => [...importedThreads, ...prev]);
           }
         } catch (error) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ChatMessage } from './use-chat-messages';
+import { chatDB } from '../lib/chat-db';
 
 interface SuggestedQueriesState {
   queries: string[];
@@ -30,30 +31,38 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     return hash.toString(16);
   };
 
-  // Load suggested queries from unified localStorage key
+  // Load suggested queries from IndexedDB
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('suggested-queries');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.queries)) {
-          setState(prev => ({ ...prev, queries: parsed.queries, lastUpdated: parsed.lastUpdated || null }));
-          lastContextHash.current = parsed.contextHash || null;
+    const loadSuggestedQueries = async () => {
+      try {
+        // First try to migrate from localStorage if it exists
+        await chatDB.migrateSuggestedQueriesFromLocalStorage();
+        
+        // Then load from IndexedDB
+        const savedQueries = await chatDB.getSuggestedQueries();
+        if (savedQueries && Array.isArray(savedQueries.queries)) {
+          setState(prev => ({ 
+            ...prev, 
+            queries: savedQueries.queries, 
+            lastUpdated: savedQueries.lastUpdated || null 
+          }));
+          lastContextHash.current = savedQueries.contextHash || null;
         }
+      } catch (e) {
+        console.warn('Failed to load suggested queries:', e);
       }
-    } catch (e) {
-      console.warn('Failed to load suggested queries:', e);
-    }
+    };
+
+    loadSuggestedQueries();
   }, []);
 
-  // Save suggested queries to single localStorage key
-  const saveToLocalStorage = useCallback((queries: string[], contextHash: string) => {
-    const data = {
-      queries,
-      lastUpdated: new Date().toISOString(),
-      contextHash
-    };
-    localStorage.setItem('suggested-queries', JSON.stringify(data));
+  // Save suggested queries to IndexedDB
+  const saveToIndexedDB = useCallback(async (queries: string[], contextHash: string) => {
+    try {
+      await chatDB.saveSuggestedQueries(queries, contextHash);
+    } catch (error) {
+      console.error('Failed to save suggested queries to IndexedDB:', error);
+    }
   }, []);
 
   // Generate suggested queries based on conversation messages
@@ -158,7 +167,7 @@ export const useSuggestedQueries = (currentThreadId: string) => {
           error: null,
           lastUpdated: new Date().toISOString(),
         }));
-        saveToLocalStorage(newQueries, contextHash);
+        saveToIndexedDB(newQueries, contextHash);
       } else {
         throw new Error(data.error || 'Malformed suggestions response');
       }
@@ -189,7 +198,7 @@ export const useSuggestedQueries = (currentThreadId: string) => {
           error: error instanceof Error ? error.message : 'Unknown error occurred',
           lastUpdated: new Date().toISOString(),
         }));
-        saveToLocalStorage(fallback.slice(0,4), contextHash);
+        saveToIndexedDB(fallback.slice(0,4), contextHash);
       } catch {
         setState(prev => ({
           ...prev,
@@ -200,7 +209,7 @@ export const useSuggestedQueries = (currentThreadId: string) => {
     } finally {
       isGenerating.current = false;
     }
-  }, [saveToLocalStorage, MIN_INTERVAL_MS]);
+  }, [saveToIndexedDB, MIN_INTERVAL_MS]);
 
   const generateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => coreGenerate(messages, threadId, false), [coreGenerate]);
   const forceGenerateSuggestedQueries = useCallback((messages: ChatMessage[], threadId: string) => {
@@ -222,14 +231,18 @@ export const useSuggestedQueries = (currentThreadId: string) => {
   }, [coreGenerate]);
 
   // Clear suggested queries for current thread
-  const clearSuggestedQueries = useCallback((_threadId?: string) => {
+  const clearSuggestedQueries = useCallback(async (_threadId?: string) => {
     setState(prev => ({
       ...prev,
       queries: [],
       error: null,
       lastUpdated: null,
     }));
-    localStorage.removeItem('suggested-queries');
+    try {
+      await chatDB.clearSuggestedQueries();
+    } catch (error) {
+      console.error('Failed to clear suggested queries from IndexedDB:', error);
+    }
     lastContextHash.current = null;
   }, []);
 
