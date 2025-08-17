@@ -88,6 +88,8 @@ export function useLocationDetection() {
 
       const data = await response.json()
 
+      console.log("Location data:", data)
+
       // Create location object
       const detectedLocation: LocationData = {
         display_name: data.display_name,

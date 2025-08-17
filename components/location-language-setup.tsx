@@ -1,12 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapPin, Globe, Check, Loader2 } from "lucide-react"
+import { useLocationDetection } from "@/hooks/use-location"
 
 interface LocationLanguageData {
   location: string
@@ -33,42 +34,25 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
   const [isDetectingLocation, setIsDetectingLocation] = useState(false)
   const [isSavingLocation, setIsSavingLocation] = useState(false)
   const [isSavingLanguage, setIsSavingLanguage] = useState(false)
+  const { detectLocation, error: detectError, isDetecting } = useLocationDetection()
 
   const updateData = (field: keyof LocationLanguageData, value: string) => {
     setData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const detectLocation = async () => {
+  const handleAutoDetect = useCallback(async () => {
     setIsDetectingLocation(true)
-    try {
-      if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(
-          async () => {
-            // Simulate reverse geocoding API call
-            setTimeout(() => {
-              // Mock location data - in real app, use reverse geocoding service
-              const mockLocation = "San Francisco, California, USA"
-              const mockTimezone = "America/Los_Angeles"
-
-              setData((prev) => ({
-                ...prev,
-                location: mockLocation,
-                timezone: mockTimezone,
-              }))
-              setIsDetectingLocation(false)
-            }, 2000)
-          },
-          (error) => {
-            console.error("Error getting location:", error)
-            setIsDetectingLocation(false)
-          },
-        )
-      }
-    } catch (error) {
-      console.error("Geolocation error:", error)
-      setIsDetectingLocation(false)
+    const loc = await detectLocation()
+    if (loc) {
+      console.log("Detected location:", loc.display_name)
+      console.log("Latitude:", loc.lat)
+      console.log("Longitude:", loc.lon)
+      // Attempt to guess timezone via Intl API (best-effort)
+      const guessedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+      setData((prev) => ({ ...prev, location: loc.display_name, timezone: prev.timezone || guessedTz }))
     }
-  }
+    setIsDetectingLocation(false)
+  }, [detectLocation])
 
   const handleSaveLocation = async () => {
     setIsSavingLocation(true)
@@ -133,14 +117,19 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
               />
               <Button
                 variant="outline"
-                onClick={detectLocation}
-                disabled={isDetectingLocation}
+                onClick={handleAutoDetect}
+                disabled={isDetectingLocation || isDetecting}
                 className="flex-shrink-0 bg-transparent"
               >
-                {isDetectingLocation ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
-                {isDetectingLocation ? "Detecting..." : "Auto-detect"}
+                {isDetectingLocation || isDetecting ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <MapPin className="w-4 h-4" />
+                )}
+                {isDetectingLocation || isDetecting ? "Detecting..." : "Auto-detect"}
               </Button>
             </div>
+            {detectError && <p className="text-xs text-red-600 mt-1" role="alert">{detectError}</p>}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

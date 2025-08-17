@@ -1,16 +1,15 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Cloud, Wind, Droplets, Compass, Loader2, MapPin } from "lucide-react"
+import { Cloud, Wind, Droplets, Compass, Loader2 } from "lucide-react"
 // Location input will be used in future features
 // import { LocationInput } from "./location-input"
 import { useTranslation } from "@/hooks/use-translation"
 
 interface WeatherSectionProps {
   location: string
-  onLocationClick?: () => void
 }
 
 interface WeatherData {
@@ -37,53 +36,100 @@ interface WeatherData {
   }>
 }
 
-export function WeatherSection({ location: initialLocation, onLocationClick }: WeatherSectionProps) {
+export function WeatherSection({ location: initialLocation }: WeatherSectionProps) {
   const { t } = useTranslation()
   const [selectedDay, setSelectedDay] = useState(0)
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [location, setLocation] = useState(initialLocation)
-  // These state variables will be used in future features
-  const [showLocationInput, _setShowLocationInput] = useState(false)
+  const [cityName, setCityName] = useState<string>('')
+  const [stateName, setStateName] = useState<string>('')
 
-  useEffect(() => {
-    const fetchWeather = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        const response = await fetch(`/api/weather?location=${encodeURIComponent(location)}`)
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch weather data")
+  const fetchWeather = useCallback(async () => {
+    if (!location) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      let weatherUrl = ''
+      
+      // First try to get coordinates from localStorage
+      const savedLocation = localStorage.getItem('cropwise-selected-location')
+      
+      if (savedLocation) {
+        try {
+          const locationData = JSON.parse(savedLocation)
+          if (locationData.lat && locationData.lng && locationData.address) {
+            // Use stored coordinates for precise weather data
+            weatherUrl = `/api/weather?lat=${locationData.lat}&lng=${locationData.lng}`
+            console.log("Fetching weather for stored location:", locationData.address, locationData.lat, locationData.lng)
+          } else {
+            // Fallback to location name only
+            weatherUrl = `/api/weather?location=${encodeURIComponent(location)}`
+          }
+        } catch {
+          // If localStorage parsing fails, use location name
+          weatherUrl = `/api/weather?location=${encodeURIComponent(location)}`
         }
-
-        const data = await response.json()
-        setWeatherData(data)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load weather")
-        console.error("Weather fetch error:", err)
-      } finally {
-        setLoading(false)
+      } else {
+        // No stored location, use provided location name
+        weatherUrl = `/api/weather?location=${encodeURIComponent(location)}`
       }
-    }
 
-    if (location) {
-      fetchWeather()
+      const response = await fetch(weatherUrl)
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch weather data")
+      }
+
+      const data = await response.json()
+      setWeatherData(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load weather")
+      console.error("Weather fetch error:", err)
+    } finally {
+      setLoading(false)
     }
   }, [location])
 
-  // These handlers will be used in future features
-  const handleLocationChange = (newLocation: string) => {
-    setLocation(newLocation)
-    _setShowLocationInput(false)
-  }
+  useEffect(() => {
+    if (location) {
+      fetchWeather()
+    }
+  }, [location, fetchWeather])
 
-  const handleLocationSelect = (locationData: { display_name: string; lat: string; lon: string }) => {
-    setLocation(locationData.display_name)
-    _setShowLocationInput(false)
-    localStorage.setItem("cropwise-location", locationData.display_name)
-  }
+  // Listen for localStorage changes to update weather automatically
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const savedLocation = localStorage.getItem('cropwise-selected-location')
+      if (savedLocation) {
+        try {
+          const locationData = JSON.parse(savedLocation)
+          if (locationData.address && locationData.address !== location) {
+            setLocation(locationData.address)
+          }
+          if (locationData.cityName) {
+            setCityName(locationData.cityName)
+          }
+          if (locationData.stateName) {
+            setStateName(locationData.stateName)
+          }
+        } catch {}
+      }
+    }
+
+    // Listen for localStorage changes from other components
+    window.addEventListener('storage', handleStorageChange)
+    
+    // Also check on component mount
+    handleStorageChange()
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+    }
+  }, [location])
 
   const days =
     weatherData?.forecast.slice(0, 6).map((day, index) => {
@@ -145,18 +191,12 @@ export function WeatherSection({ location: initialLocation, onLocationClick }: W
         <div className="flex items-center justify-between mb-4">
           <div className="flex-1">
             <div className="flex items-center gap-3">
-              <h3 className="font-medium text-gray-900">{weatherData?.location || location}</h3>
-              {onLocationClick && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={onLocationClick}
-                  className="flex items-center gap-1 text-emerald-700 hover:bg-emerald-700 hover:text-white h-auto p-1 text-xs transition-colors"
-                >
-                  <MapPin className="h-3 w-3" />
-                  <span>Change Location</span>
-                </Button>
-              )}
+              <div>
+                <h3 className="font-medium text-gray-900">{cityName || weatherData?.location || location}</h3>
+                {stateName && cityName && (
+                  <p className="text-sm text-gray-500">{stateName}</p>
+                )}
+              </div>
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-2xl font-bold">

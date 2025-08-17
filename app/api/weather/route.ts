@@ -70,24 +70,38 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const location = searchParams.get("location")
+    const lat = searchParams.get("lat")
+    const lng = searchParams.get("lng")
 
-    if (!location) {
-      return NextResponse.json({ error: "Location parameter is required" }, { status: 400 })
+    let latitude: number
+    let longitude: number
+    let locationName: string
+
+    // If lat/lng provided directly, use them
+    if (lat && lng) {
+      latitude = parseFloat(lat)
+      longitude = parseFloat(lng)
+      locationName = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
+    } else if (location) {
+      // Fallback to geocoding if only location name provided
+      const cleanLocation = location.split(",")[0].trim()
+
+      // Get coordinates from location name
+      const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLocation)}&count=1`
+      const geocodingResponse = await fetch(geocodingUrl)
+      const geocodingData = (await geocodingResponse.json()) as GeocodingResponse
+
+      if (!geocodingData.results?.[0]) {
+        return NextResponse.json({ error: `Location '${cleanLocation}' not found` }, { status: 404 })
+      }
+
+      const geocodingResult = geocodingData.results[0]
+      latitude = geocodingResult.latitude
+      longitude = geocodingResult.longitude
+      locationName = geocodingResult.name
+    } else {
+      return NextResponse.json({ error: "Either location name or lat/lng parameters are required" }, { status: 400 })
     }
-
-    // Clean the location input to extract only the city name
-    const cleanLocation = location.split(",")[0].trim()
-
-    // Get coordinates from location name
-    const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanLocation)}&count=1`
-    const geocodingResponse = await fetch(geocodingUrl)
-    const geocodingData = (await geocodingResponse.json()) as GeocodingResponse
-
-    if (!geocodingData.results?.[0]) {
-      return NextResponse.json({ error: `Location '${cleanLocation}' not found` }, { status: 404 })
-    }
-
-    const { latitude, longitude, name } = geocodingData.results[0]
 
     // Get weather data
     const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,weather_code&timezone=auto&forecast_days=7`
@@ -110,7 +124,7 @@ export async function GET(request: NextRequest) {
     }))
 
     const result = {
-      location: name,
+      location: locationName,
       currentWeather: {
         temperature: weatherData.current.temperature_2m,
         feelsLike: weatherData.current.apparent_temperature,

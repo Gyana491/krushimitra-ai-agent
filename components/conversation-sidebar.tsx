@@ -85,6 +85,7 @@ export function ConversationSidebar({
   }
 
   const threadGroups = groupThreadsByDate(threads)
+  // Location selection moved to mobile header per requirement.
 
   const content = (
     <>

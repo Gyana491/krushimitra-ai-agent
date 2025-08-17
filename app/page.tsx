@@ -77,15 +77,12 @@ export default function Home() {
     isLoading: isLoadingSuggestions,
     error: suggestionsError,
     // generateSuggestedQueries, // Unused but kept for future features
-    forceGenerateSuggestedQueries,
     refreshSuggestedQueries,
     // shouldRegenerateQueries, // Unused but kept for future features
-    lastUpdated
   } = useSuggestedQueries(currentThreadId);
 
   // Track previous status to detect when streaming completes
   const [prevStatus, setPrevStatus] = useState<typeof status>('idle');
-  const lastAssistantMessageId = useRef<string | null>(null);
 
   // Simple suggested queries generation - only after conversation completes
   useEffect(() => {
@@ -353,7 +350,6 @@ export default function Home() {
             <div className="flex-1 overflow-y-auto space-y-4">
               <WeatherSection 
                 location={userData?.location || "Unknown Location"} 
-                onLocationClick={() => setCurrentView("location")}
               />
               {/* Suggested queries block on home */}
               <div className="px-4">
