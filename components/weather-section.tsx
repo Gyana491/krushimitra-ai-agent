@@ -214,7 +214,31 @@ export function WeatherSection({ location: initialLocation, onGetAdvice }: Weath
               <span className="text-gray-600 text-sm font-medium capitalize">
                 {(() => {
                   const key = selectedDay === 0 ? weatherData?.currentWeather.conditions : currentDayWeather?.conditions;
-                  return key ? t(key as any) : '';
+                  if (!key) return '';
+                  
+                  // Create a mapping function to handle weather conditions
+                  const getWeatherTranslation = (condition: string): string => {
+                    // Convert condition to lowercase and check for known patterns
+                    const lowerCondition = condition.toLowerCase();
+                    
+                    // Map common weather conditions to translation keys
+                    if (lowerCondition.includes('clear')) return t('clearSky');
+                    if (lowerCondition.includes('rain') && lowerCondition.includes('light')) return t('lightRain');
+                    if (lowerCondition.includes('rain') && lowerCondition.includes('heavy')) return t('heavyRain');
+                    if (lowerCondition.includes('rain')) return t('moderateRain');
+                    if (lowerCondition.includes('cloud') && lowerCondition.includes('partly')) return t('partlyCloudy');
+                    if (lowerCondition.includes('cloud')) return t('cloudy');
+                    if (lowerCondition.includes('overcast')) return t('overcast');
+                    if (lowerCondition.includes('fog')) return t('foggy');
+                    if (lowerCondition.includes('drizzle')) return t('lightDrizzle');
+                    if (lowerCondition.includes('snow')) return t('slightSnow');
+                    if (lowerCondition.includes('thunder')) return t('thunderstorm');
+                    
+                    // Fallback to the original condition string if no translation found
+                    return condition;
+                  };
+                  
+                  return getWeatherTranslation(key);
                 })()}
               </span>
             </div>
