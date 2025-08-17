@@ -37,7 +37,7 @@ interface UserData {
 export default function Home() {
   const [userData, setUserData] = useState<UserData | null>(null)
   const [selectedLocation, setSelectedLocation] = useState<string>('')
-  const { t } = useTranslation(userData?.language)
+  const { /* t */ } = useTranslation(userData?.language) // t currently unused
   const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -92,7 +92,7 @@ export default function Home() {
   const {
     queries: globalQueries,
     isLoading: isLoadingGlobalQueries,
-    refreshGlobalQueries,
+  // refreshGlobalQueries, // currently unused
     regenerateGlobalQueries
   } = useGlobalSuggestedQueries();
 

@@ -3,7 +3,6 @@
 import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { MapPin, Globe, Check, Loader2 } from "lucide-react"
@@ -34,10 +33,11 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
     weatherUnit: initialData?.weatherUnit || "metric",
     currency: initialData?.currency || "USD",
   })
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false)
+  // Detection UI state removed (not currently displayed)
+  const [/* isDetectingLocation */] = useState(false)
   const [isSavingLocation, setIsSavingLocation] = useState(false)
   const [isSavingLanguage, setIsSavingLanguage] = useState(false)
-  const { detectLocation, error: detectError, isDetecting } = useLocationDetection()
+  const { /* detectLocation, error: detectError, isDetecting */ } = useLocationDetection()
 
   // Handle location picker changes
   const handleLocationChange = useCallback((locationData: SelectedLocationData) => {
@@ -56,19 +56,8 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
     }
   }, [address, data.location])
 
-  const handleAutoDetect = useCallback(async () => {
-    setIsDetectingLocation(true)
-    const loc = await detectLocation()
-    if (loc) {
-      console.log("Detected location:", loc.display_name)
-      console.log("Latitude:", loc.lat)
-      console.log("Longitude:", loc.lon)
-      // Attempt to guess timezone via Intl API (best-effort)
-      const guessedTz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""
-      setData((prev) => ({ ...prev, location: loc.display_name, timezone: prev.timezone || guessedTz }))
-    }
-    setIsDetectingLocation(false)
-  }, [detectLocation])
+  // Auto-detect handler currently unused; retained logic commented for future enablement
+  // const handleAutoDetect = useCallback(async () => { ... }, [])
 
   const handleSaveLocation = async () => {
     setIsSavingLocation(true)

@@ -25,7 +25,9 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if ((window as any).google?.maps?.places) { setScriptLoaded(true); return }
+  // Narrow global google existence without explicit any usage
+  const w = window as unknown as { google?: { maps?: { places?: unknown } } }
+  if (w.google?.maps?.places) { setScriptLoaded(true); return }
     const existing = document.getElementById('google-maps-script') as HTMLScriptElement | null
     if (existing) { existing.addEventListener('load', () => setScriptLoaded(true)); return }
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''
@@ -57,8 +59,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
         
         let city: string | undefined
         let state: string | undefined 
-        let country: string | undefined
-        let postalCode: string | undefined
+  let country: string | undefined
         
         // Parse address components for detailed information
         if (place.address_components) {
@@ -72,9 +73,7 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
             if (comp.types.includes('country')) {
               country = comp.long_name
             }
-            if (comp.types.includes('postal_code')) {
-              postalCode = comp.long_name
-            }
+            // postal_code intentionally ignored (unused)
             // Fallback for city if locality not found
             if (!city && comp.types.includes('administrative_area_level_2')) {
               city = comp.long_name
