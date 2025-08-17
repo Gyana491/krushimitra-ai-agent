@@ -5,7 +5,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   parts: Array<{
-    type: 'text' | 'reasoning' | 'source-url' | 'tool-call' | 'tool-result' | 'image';
+  type: 'text' | 'reasoning' | 'source-url' | 'tool-call' | 'tool-result' | 'image' | 'suggested-queries';
     text?: string;
     url?: string;
     toolName?: string;
@@ -15,6 +15,7 @@ export interface ChatMessage {
     imageData?: string;
     imageName?: string;
     imageType?: string;
+  queries?: string[]; // for suggested-queries
   }>;
 }
 

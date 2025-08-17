@@ -4,9 +4,10 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Bot, Leaf, User, CloudSun, IndianRupee, BookOpenText, Database, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Bot, Leaf, User, CloudSun, IndianRupee, BookOpenText, Database, Loader2, CheckCircle2, XCircle, Sparkles, CornerDownRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { useTranslation } from "@/hooks/use-translation";
 
 interface DisplayToolCall {
   id: string;
@@ -25,6 +26,8 @@ interface EnhancedChatMessagesProps {
     reasoning: string[];
     finalResponse: string;
   };
+  suggestedQueries?: string[]; // current suggestions to show inline after last assistant message
+  onSuggestedQueryClick?: (q: string) => void;
 }
 
 function FarmingLoadingIndicator({ step }: { step?: string }) {
@@ -151,41 +154,84 @@ function ToolCallDisplay({ toolCalls }: { toolCalls: DisplayToolCall[] }) {
 export function EnhancedChatMessages({ 
   messages, 
   isLoading, 
-  streamingState 
+  streamingState,
+  suggestedQueries = [],
+  onSuggestedQueryClick
 }: EnhancedChatMessagesProps) {
+  const { t } = useTranslation()
+  
   const formatTime = (date: Date | string) => {
     const dateObj = date instanceof Date ? date : new Date(date);
     return dateObj.toLocaleTimeString('en-US', { hour: "2-digit", minute: "2-digit" });
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const endOfMessagesRef = useRef<HTMLDivElement>(null);
   
-  useEffect(() => {
-    // Auto-scroll to bottom on new messages or loading state
-    const container = containerRef.current;
-    if (container) {
-      container.scrollTop = container.scrollHeight;
+  // Auto-scroll to bottom function with smooth behavior and gap
+  const scrollToBottom = () => {
+    if (containerRef.current) {
+      const container = containerRef.current;
+      const scrollHeight = container.scrollHeight;
+      const clientHeight = container.clientHeight;
+      // Scroll to bottom with some gap (80px from bottom)
+      const targetScrollTop = scrollHeight - clientHeight - 80;
+      
+      container.scrollTo({
+        top: Math.max(0, targetScrollTop),
+        behavior: 'smooth'
+      });
     }
-  }, [messages, isLoading]);
+  };
+
+  // Auto-scroll on new messages
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Auto-scroll during streaming/loading
+  useEffect(() => {
+    if (isLoading || streamingState?.finalResponse) {
+      scrollToBottom();
+    }
+  }, [isLoading, streamingState?.finalResponse, streamingState?.currentStep]);
+
+  // Auto-scroll when streaming response updates
+  useEffect(() => {
+    if (streamingState?.finalResponse) {
+      const timeoutId = setTimeout(scrollToBottom, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [streamingState?.finalResponse]);
+
+  // Initial scroll to bottom on mount if there are existing messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      // Use smooth scroll on mount with delay
+      setTimeout(() => {
+        scrollToBottom();
+      }, 100);
+    }
+  }, []); // Only run on mount
   
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
+    <div ref={containerRef} className="flex-1 overflow-y-auto p-4 space-y-4 pb-32">
       {messages.length === 0 && !isLoading ? (
         <div className="flex items-center justify-center h-full">
           <div className="text-center text-gray-500 dark:text-gray-400">
             <div className="text-6xl mb-4">🌾</div>
-            <h2 className="text-xl font-semibold mb-2">Welcome to Farm Assistant</h2>
+            <h2 className="text-xl font-semibold mb-2">{t('welcomeTitle')}</h2>
             <p className="text-sm mb-4">
-              Ask me about weather, crop prices, farming advice, or upload images for analysis!
+              {t('welcomeDescription')}
             </p>
             
             <div className="mt-4 space-y-2 text-xs">
-              <p>Try asking:</p>
+              <p>{t('tryAsking')}:</p>
               <div className="space-y-1">
-                <p>&quot;What&apos;s the weather like today?&quot;</p>
-                <p>&quot;Market price of Potato in Cuttack&quot;</p>
-                <p>&quot;Best farming practices for rice&quot;</p>
-                <p>&quot;📷 Upload crop images for disease analysis&quot;</p>
+                <p>&quot;{t('exampleWeather')}&quot;</p>
+                <p>&quot;{t('examplePrice')}&quot;</p>
+                <p>&quot;{t('exampleFarming')}&quot;</p>
+                <p>&quot;{t('exampleImage')}&quot;</p>
               </div>
             </div>
           </div>
@@ -283,6 +329,30 @@ export function EnhancedChatMessages({
                           </div>
                         );
                       
+                      case 'suggested-queries':
+                        if (!part.queries || part.queries.length === 0) return null;
+                        return (
+                          <div key={i} className="mt-2 space-y-2">
+                            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide text-emerald-600 font-medium">
+                              <Sparkles className="h-3 w-3" /> {t('suggestedFollowUps')}
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {part.queries.map((q, qi) => (
+                                <button
+                                  key={qi}
+                                  onClick={() => onSuggestedQueryClick?.(q)}
+                                  className="group flex items-start gap-2 text-left p-2 rounded-md border border-emerald-300 hover:border-emerald-400 bg-emerald-50/60 hover:bg-emerald-100 transition-colors cursor-pointer"
+                                >
+                                  <CornerDownRight className="h-4 w-4 text-emerald-500 mt-0.5" />
+                                  <span className="text-[13px] text-emerald-800 group-hover:text-emerald-900 leading-snug flex-1">{q}</span>
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white group-hover:bg-emerald-700 ml-1">
+                                    {t('askButton')}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        );
                       default:
                         return null;
                     }
@@ -299,7 +369,7 @@ export function EnhancedChatMessages({
       )}
 
       {/* Show streaming state */}
-      {isLoading && streamingState && (
+  {isLoading && streamingState && (
         <>
           <ToolCallDisplay toolCalls={streamingState.toolCalls} />
           
@@ -323,6 +393,40 @@ export function EnhancedChatMessages({
       )}
       
       {isLoading && !streamingState && <FarmingLoadingIndicator />}
+
+      {/* Inline suggested queries after last assistant reply if not loading */}
+      {!isLoading && suggestedQueries.length > 0 && (() => {
+        const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+        if (!lastAssistant) return null;
+        return (
+          <div className="flex gap-2 max-w-[85%] mr-auto">
+            <Avatar className="h-8 w-8 flex-shrink-0">
+              <AvatarFallback className="bg-secondary text-secondary-foreground">
+                <Bot className="h-4 w-4" />
+              </AvatarFallback>
+            </Avatar>
+            <Card className="p-3 bg-card border-emerald-200/70">
+              <div className="flex items-center gap-2 mb-2 text-xs font-medium text-emerald-700"><Sparkles className="h-4 w-4" /> {t('suggestedFollowUps')}</div>
+              <div className="space-y-1">
+                {suggestedQueries.map((q, i) => (
+                  <button
+                    key={i}
+                    onClick={() => onSuggestedQueryClick?.(q)}
+                    className="group w-full text-left text-[13px] px-2 py-1 rounded-md border border-emerald-300 hover:border-emerald-400 bg-emerald-50/40 hover:bg-emerald-50 flex items-start gap-2 transition-colors cursor-pointer"
+                  >
+                    <CornerDownRight className="h-4 w-4 text-emerald-500 mt-0.5" />
+                    <span className="flex-1 leading-snug text-emerald-800 group-hover:text-emerald-900">{q}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-600 text-white group-hover:bg-emerald-700">{t('askButton')}</span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
+      
+      {/* Invisible element to scroll to */}
+      <div ref={endOfMessagesRef} className="h-1" />
     </div>
   );
 }

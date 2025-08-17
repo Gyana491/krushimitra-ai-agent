@@ -2,14 +2,15 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Edit3, Save, Camera, Leaf, MapPin } from "lucide-react"
+import { Separator } from "@/components/ui/separator"
+import { Edit3, Save, Camera, Leaf, MapPin, Database, Download, RefreshCw, Trash2 } from "lucide-react"
 
 interface UserProfileData {
   name: string
@@ -38,9 +39,22 @@ interface UserProfileProps {
 export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [editData, setEditData] = useState<UserProfileData>(userData)
+  const [isFarmEditing, setIsFarmEditing] = useState(false)
+  const [farmEditData, setFarmEditData] = useState({
+    farmType: userData.farmType,
+    farmSize: userData.farmSize,
+    experience: userData.experience,
+    location: userData.location,
+    mainCrops: userData.mainCrops,
+    goals: userData.goals
+  })
 
   const updateEditData = (field: keyof UserProfileData, value: string | string[]) => {
     setEditData((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const updateFarmEditData = (field: keyof typeof farmEditData, value: string) => {
+    setFarmEditData((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleSave = () => {
@@ -48,9 +62,26 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
     setIsEditing(false)
   }
 
+  const handleFarmSave = () => {
+    onUpdate(farmEditData)
+    setIsFarmEditing(false)
+  }
+
   const handleCancel = () => {
     setEditData(userData)
     setIsEditing(false)
+  }
+
+  const handleFarmCancel = () => {
+    setFarmEditData({
+      farmType: userData.farmType,
+      farmSize: userData.farmSize,
+      experience: userData.experience,
+      location: userData.location,
+      mainCrops: userData.mainCrops,
+      goals: userData.goals
+    })
+    setIsFarmEditing(false)
   }
 
   const getExperienceBadgeColor = (experience: string) => {
@@ -90,7 +121,7 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
         <CardContent className="pt-6">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
             <div className="relative">
-              <Avatar className="w-24 h-24 md:w-32 md:w-32">
+              <Avatar className="w-24 h-24 md:w-32 md:h-32">
                 <AvatarImage src={editData.avatar || "/placeholder.svg"} alt={editData.name} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-2xl">
                   {editData.name
@@ -175,17 +206,35 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Leaf className="w-5 h-5 text-primary" />
-                Farm Information
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Leaf className="w-5 h-5 text-primary" />
+                  Farm Information
+                </div>
+                {!isFarmEditing ? (
+                  <Button variant="outline" size="sm" onClick={() => setIsFarmEditing(true)}>
+                    <Edit3 className="w-4 h-4 mr-2" />
+                    Edit Farm Info
+                  </Button>
+                ) : (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={handleFarmCancel}>
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={handleFarmSave}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save
+                    </Button>
+                  </div>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isEditing ? (
+              {isFarmEditing ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Farm Type</Label>
-                    <Select value={editData.farmType} onValueChange={(value) => updateEditData("farmType", value)}>
+                    <Select value={farmEditData.farmType} onValueChange={(value) => updateFarmEditData("farmType", value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -202,7 +251,7 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
 
                   <div className="space-y-2">
                     <Label>Farm Size</Label>
-                    <Select value={editData.farmSize} onValueChange={(value) => updateEditData("farmSize", value)}>
+                    <Select value={farmEditData.farmSize} onValueChange={(value) => updateFarmEditData("farmSize", value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -217,7 +266,7 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
 
                   <div className="space-y-2">
                     <Label>Experience Level</Label>
-                    <Select value={editData.experience} onValueChange={(value) => updateEditData("experience", value)}>
+                    <Select value={farmEditData.experience} onValueChange={(value) => updateFarmEditData("experience", value)}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -233,8 +282,8 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
                   <div className="space-y-2">
                     <Label>Location</Label>
                     <Input
-                      value={editData.location}
-                      onChange={(e) => updateEditData("location", e.target.value)}
+                      value={farmEditData.location}
+                      onChange={(e) => updateFarmEditData("location", e.target.value)}
                       placeholder="City, State, Country"
                     />
                   </div>
@@ -242,8 +291,8 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
                   <div className="md:col-span-2 space-y-2">
                     <Label>Main Crops</Label>
                     <Input
-                      value={editData.mainCrops}
-                      onChange={(e) => updateEditData("mainCrops", e.target.value)}
+                      value={farmEditData.mainCrops}
+                      onChange={(e) => updateFarmEditData("mainCrops", e.target.value)}
                       placeholder="e.g., Tomatoes, Corn, Wheat, Rice"
                     />
                   </div>
@@ -251,8 +300,8 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
                   <div className="md:col-span-2 space-y-2">
                     <Label>Farming Goals</Label>
                     <Textarea
-                      value={editData.goals}
-                      onChange={(e) => updateEditData("goals", e.target.value)}
+                      value={farmEditData.goals}
+                      onChange={(e) => updateFarmEditData("goals", e.target.value)}
                       placeholder="What are your main farming goals?"
                       rows={3}
                     />
@@ -292,15 +341,73 @@ export function UserProfile({ userData, onUpdate, onClose }: UserProfileProps) {
 
         {/* Stats & Achievements */}
         
-      </div>
 
-      {onClose && (
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      )}
+        {/* Data Management Section */}
+        <Card className="w-full max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-primary" />
+              Data Management
+            </CardTitle>
+            <CardDescription>Manage your app data and settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <Button variant="outline" onClick={() => {
+                // Export data functionality
+                const allData = {
+                  userData,
+                  chatHistory: JSON.parse(localStorage.getItem("cropwise-chat-threads") || "[]"),
+                  settings: JSON.parse(localStorage.getItem("cropwise-settings") || "{}")
+                }
+                const dataStr = JSON.stringify(allData, null, 2)
+                const dataBlob = new Blob([dataStr], { type: "application/json" })
+                const url = URL.createObjectURL(dataBlob)
+                const link = document.createElement("a")
+                link.href = url
+                link.download = `cropwise-data-${new Date().toISOString().split('T')[0]}.json`
+                document.body.appendChild(link)
+                link.click()
+                document.body.removeChild(link)
+                URL.revokeObjectURL(url)
+              }} className="w-full bg-transparent">
+                <Download className="w-4 h-4 mr-2" />
+                Export Data
+              </Button>
+              <Button variant="outline" onClick={() => {
+                // Reset settings functionality
+                localStorage.removeItem("cropwise-settings")
+                window.location.reload()
+              }} className="w-full bg-transparent">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Reset Settings
+              </Button>
+            </div>
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span className="text-sm font-medium">Clear All Data</span>
+                <Badge variant="destructive">Danger Zone</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                This will permanently delete all your chat history, preferences, and profile data.
+              </p>
+              <Button variant="destructive" onClick={() => {
+                // Clear all data functionality
+                if (window.confirm("Are you sure? This action cannot be undone.")) {
+                  localStorage.clear()
+                  window.location.reload()
+                }
+              }} className="w-full max-w-xs">
+                <Trash2 className="w-4 h-4 mr-2" />
+                Clear All Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

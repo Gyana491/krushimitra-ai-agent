@@ -27,13 +27,15 @@ export const useChat = () => {
     showThreadsList,
     setShowThreadsList,
     createNewThread,
+    createActualThread,
     switchToThread,
     deleteThread,
     updateCurrentThread,
     clearCurrentThread: clearThread,
     exportThreads,
     importThreads,
-    getCurrentThread
+    getCurrentThread,
+    isPendingNewThread
   } = useChatThreads();
 
   const {
@@ -54,18 +56,24 @@ export const useChat = () => {
       if (currentThread) {
         updateMessages(currentThread.messages);
       }
-    } else {
-      // Create initial thread if none exists
-      if (chatThreads.length === 0) {
-        createNewThread();
-      }
+    } else if (!isPendingNewThread && chatThreads.length === 0) {
+      // Create initial pending thread if none exists and not already pending
+      createNewThread();
+    } else if (!isPendingNewThread && !currentThreadId && chatThreads.length > 0) {
+      // Only switch to the most recent thread if no current thread is selected
+      // This prevents auto-switching when a thread is already selected
+      const mostRecent = chatThreads[0];
+      switchToThread(mostRecent.id);
     }
-  }, [currentThreadId, getCurrentThread, updateMessages, createNewThread, chatThreads.length]);
+  }, [currentThreadId, chatThreads.length, isPendingNewThread, createNewThread, getCurrentThread, switchToThread, updateMessages]);
 
-  // Update current thread when messages change
+  // Update current thread when messages change (only if we have messages or not pending)
   useEffect(() => {
-    updateCurrentThread(messages);
-  }, [messages, updateCurrentThread]);
+    if (messages.length > 0 && currentThreadId) {
+      // Only update if we have both messages and a current thread ID
+      updateCurrentThread(messages);
+    }
+  }, [messages, updateCurrentThread, currentThreadId]);
 
   // Console logging
   useEffect(() => {
@@ -73,7 +81,8 @@ export const useChat = () => {
     console.log('Messages:', messages);
     console.log('Total messages in thread:', messages.length);
     console.log('Current thread ID:', currentThreadId);
-  }, [messages, status, currentThreadId]);
+    console.log('Is pending new thread:', isPendingNewThread);
+  }, [messages, status, currentThreadId, isPendingNewThread]);
 
   const clearCurrentThread = () => {
     clearThread();
@@ -92,6 +101,8 @@ export const useChat = () => {
     if (thread) {
       updateMessages(thread.messages);
       clearImages();
+      // Reset input to prevent carrying over text from previous thread
+      setInput('');
     }
   };
 
@@ -106,23 +117,26 @@ export const useChat = () => {
   };
 
   const sendMessage = async (userMessage: string) => {
+    // Clear images immediately before sending to provide instant feedback
+    const imagesToSend = [...selectedImages];
+    clearImages();
+    
     await sendApiMessage(
       userMessage,
-      selectedImages,
+      imagesToSend,
       messages,
       updateMessages,
       setStatus,
       setStreamingState
     );
-    // Clear images after sending
-    clearImages();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if ((input.trim() || selectedImages.length > 0) && status !== 'streaming') {
-      sendMessage(input);
-      setInput('');
+      const messageToSend = input;
+      setInput(''); // Clear input immediately
+      sendMessage(messageToSend);
     }
   };
 

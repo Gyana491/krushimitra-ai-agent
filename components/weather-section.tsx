@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Cloud, Wind, Droplets, Compass, Loader2 } from "lucide-react"
+import { Cloud, Wind, Droplets, Compass, Loader2, MapPin } from "lucide-react"
 import { LocationInput } from "./location-input"
 import { useTranslation } from "@/hooks/use-translation"
 
 interface WeatherSectionProps {
   location: string
+  onLocationClick?: () => void
 }
 
 interface WeatherData {
@@ -35,7 +36,7 @@ interface WeatherData {
   }>
 }
 
-export function WeatherSection({ location: initialLocation }: WeatherSectionProps) {
+export function WeatherSection({ location: initialLocation, onLocationClick }: WeatherSectionProps) {
   const { t } = useTranslation()
   const [selectedDay, setSelectedDay] = useState(0)
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null)
@@ -140,16 +141,20 @@ export function WeatherSection({ location: initialLocation }: WeatherSectionProp
       <Card className="p-4 bg-white">
         <div className="flex items-center justify-between mb-4">
           <div className="flex-1">
-            {showLocationInput ? (
-              <LocationInput value={location} onChange={handleLocationChange} onLocationSelect={handleLocationSelect} />
-            ) : (
-              <button
-                onClick={() => setShowLocationInput(true)}
-                className="text-left hover:text-emerald-600 transition-colors"
-              >
-                <h3 className="font-medium text-gray-900">{weatherData?.location || location}</h3>
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              <h3 className="font-medium text-gray-900">{weatherData?.location || location}</h3>
+              {onLocationClick && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onLocationClick}
+                  className="flex items-center gap-1 text-emerald-700 hover:bg-emerald-700 hover:text-white h-auto p-1 text-xs transition-colors"
+                >
+                  <MapPin className="h-3 w-3" />
+                  <span>Change Location</span>
+                </Button>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-2xl font-bold">
                 {selectedDay === 0

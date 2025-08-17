@@ -13,6 +13,7 @@ export const useChatThreads = () => {
   const [currentThreadId, setCurrentThreadId] = useState<string>('');
   const [chatThreads, setChatThreads] = useState<ChatThread[]>([]);
   const [showThreadsList, setShowThreadsList] = useState(false);
+  const [isPendingNewThread, setIsPendingNewThread] = useState(false);
 
   // Load chat threads from localStorage on mount
   useEffect(() => {
@@ -29,10 +30,16 @@ export const useChatThreads = () => {
         } else if (parsedThreads.length > 0) {
           const mostRecent = parsedThreads[0];
           setCurrentThreadId(mostRecent.id);
+        } else {
+          // No threads exist, set pending new thread state
+          setIsPendingNewThread(true);
         }
       } catch (error) {
         console.error('Error loading chat threads:', error);
       }
+    } else {
+      // No saved threads, set pending new thread state
+      setIsPendingNewThread(true);
     }
   }, []);
 
@@ -47,17 +54,31 @@ export const useChatThreads = () => {
   }, [chatThreads, currentThreadId]);
 
   const createNewThread = useCallback(() => {
+    // Instead of creating a thread immediately, set up pending state
+    setCurrentThreadId('');
+    setIsPendingNewThread(true);
+    return ''; // Return empty string to indicate pending state
+  }, []);
+
+  const createActualThread = useCallback((firstMessage?: ChatMessage) => {
     const newThreadId = `thread-${Date.now()}`;
+    const title = firstMessage?.content 
+      ? (firstMessage.content.length > 50 
+          ? firstMessage.content.slice(0, 50) + '...' 
+          : firstMessage.content)
+      : 'New Chat';
+    
     const newThread: ChatThread = {
       id: newThreadId,
-      title: 'New Chat',
-      messages: [],
+      title,
+      messages: firstMessage ? [firstMessage] : [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     
     setChatThreads(prev => [newThread, ...prev]);
     setCurrentThreadId(newThreadId);
+    setIsPendingNewThread(false);
     return newThreadId;
   }, []);
 
@@ -66,6 +87,7 @@ export const useChatThreads = () => {
     if (thread) {
       setCurrentThreadId(threadId);
       setShowThreadsList(false);
+      setIsPendingNewThread(false); // Ensure we're not in pending new thread state
       return thread;
     }
     return null;
@@ -81,29 +103,42 @@ export const useChatThreads = () => {
       const remainingThreads = chatThreads.filter(t => t.id !== threadId);
       if (remainingThreads.length > 0) {
         setCurrentThreadId(remainingThreads[0].id);
+        setIsPendingNewThread(false);
         return remainingThreads[0];
       } else {
-        const newThreadId = createNewThread();
-        return chatThreads.find(t => t.id === newThreadId) || null;
+        // No threads left, set up pending new thread
+        setCurrentThreadId('');
+        setIsPendingNewThread(true);
+        return null;
       }
     }
     return null;
-  }, [chatThreads, currentThreadId, createNewThread]);
+  }, [chatThreads, currentThreadId]);
 
   const updateCurrentThread = useCallback((messages: ChatMessage[]) => {
-    if (currentThreadId && messages.length > 0) {
-      setChatThreads(prev => prev.map(thread => 
-        thread.id === currentThreadId 
-          ? { 
-              ...thread, 
-              messages, 
-              updatedAt: new Date().toISOString(),
-              title: messages[0]?.content.slice(0, 50) + (messages[0]?.content.length > 50 ? '...' : '') || 'New Chat'
-            }
-          : thread
-      ));
+    if (messages.length > 0) {
+      if (isPendingNewThread) {
+        // Create the actual thread now that we have a message
+        createActualThread(messages[0]);
+      } else if (currentThreadId) {
+        // Update existing thread
+        setChatThreads(prev => prev.map(thread => 
+          thread.id === currentThreadId 
+            ? { 
+                ...thread, 
+                messages, 
+                updatedAt: new Date().toISOString(),
+                title: messages[0]?.content 
+                  ? (messages[0].content.length > 50 
+                      ? messages[0].content.slice(0, 50) + '...' 
+                      : messages[0].content)
+                  : 'New Chat'
+              }
+            : thread
+        ));
+      }
     }
-  }, [currentThreadId]);
+  }, [currentThreadId, isPendingNewThread, createActualThread]);
 
   const clearCurrentThread = useCallback(() => {
     if (currentThreadId) {
@@ -157,12 +192,14 @@ export const useChatThreads = () => {
     showThreadsList,
     setShowThreadsList,
     createNewThread,
+    createActualThread,
     switchToThread,
     deleteThread,
     updateCurrentThread,
     clearCurrentThread,
     exportThreads,
     importThreads,
-    getCurrentThread
+    getCurrentThread,
+    isPendingNewThread
   };
 };

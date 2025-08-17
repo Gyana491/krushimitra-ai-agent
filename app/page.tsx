@@ -1,18 +1,19 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { EnhancedChatMessages } from "@/components/enhanced-chat-messages"
 import { EnhancedChatInput } from "@/components/enhanced-chat-input"
-import { ImagePreview } from "@/components/image-preview"
 import { MobileHeader } from "@/components/mobile-header"
 import { WeatherSection } from "@/components/weather-section"
 import { MarketPriceSection } from "@/components/market-price-section"
 import { OnboardingFlow } from "@/components/onboarding-flow"
 import { UserProfile } from "@/components/user-profile"
-import { SettingsPanel } from "@/components/settings-panel"
 import { LocationLanguageSetup } from "@/components/location-language-setup"
+import { ConversationSidebar } from "@/components/conversation-sidebar"
+import { SuggestedQueries } from "@/components/suggested-queries"
 import { useTranslation } from "@/hooks/use-translation"
 import { useChat } from "@/hooks/use-chat"
+import { useSuggestedQueries } from "@/hooks/use-suggested-queries"
 
 interface UserData {
   name: string
@@ -32,35 +33,12 @@ interface UserData {
   achievements?: string[]
 }
 
-interface SettingsData {
-  notifications: {
-    weatherAlerts: boolean
-    diseaseOutbreaks: boolean
-    marketPrices: boolean
-    generalUpdates: boolean
-  }
-  appearance: {
-    theme: "light" | "dark" | "system"
-    language: string
-    fontSize: "small" | "medium" | "large"
-  }
-  privacy: {
-    dataCollection: boolean
-    locationTracking: boolean
-    analyticsOptIn: boolean
-  }
-  audio: {
-    soundEnabled: boolean
-    voiceResponses: boolean
-    volume: number
-  }
-}
-
 export default function Home() {
-  const { t } = useTranslation()
-  const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "settings" | "location">("home")
   const [userData, setUserData] = useState<UserData | null>(null)
+  const { t } = useTranslation(userData?.language)
+  const [currentView, setCurrentView] = useState<"home" | "chat" | "profile" | "location">("home")
   const [isOnboarding, setIsOnboarding] = useState(true)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   
   // Use our custom chat hook
   const {
@@ -72,6 +50,13 @@ export default function Home() {
     messages,
     status,
     streamingState,
+    
+    // Thread management
+    currentThreadId,
+    chatThreads,
+    createNewThread,
+    switchToThread,
+    deleteThread,
     
     // Image handling
     selectedImages,
@@ -85,10 +70,49 @@ export default function Home() {
     handleSubmit
   } = useChat();
 
+  // Initialize suggested queries hook
+  const {
+    suggestedQueries,
+    isLoading: isLoadingSuggestions,
+    error: suggestionsError,
+    generateSuggestedQueries,
+  forceGenerateSuggestedQueries,
+    refreshSuggestedQueries,
+    shouldRegenerateQueries,
+    lastUpdated
+  } = useSuggestedQueries(currentThreadId);
+
+  // Track previous status to detect when streaming completes
+  const [prevStatus, setPrevStatus] = useState<typeof status>('idle');
+  const lastAssistantMessageId = useRef<string | null>(null);
+
+  // Generate suggested queries only after agent response is complete
+  useEffect(() => {
+    const hasJustCompleted = prevStatus === 'streaming' && status === 'idle';
+    if (hasJustCompleted && messages.length >= 2 && currentThreadId) {
+      const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+      if (lastAssistant && lastAssistant.id !== lastAssistantMessageId.current) {
+        const timeoutId = setTimeout(() => {
+          lastAssistantMessageId.current = lastAssistant.id || Math.random().toString(36).slice(2);
+          // Force generation each assistant turn with context change logic inside the hook
+          forceGenerateSuggestedQueries(messages, currentThreadId);
+        }, 600);
+        return () => clearTimeout(timeoutId);
+      }
+    }
+    setPrevStatus(status);
+  }, [status, messages, currentThreadId, forceGenerateSuggestedQueries, lastUpdated, prevStatus]);
+
   // Wrap sendMessage to handle view changes
   const wrappedSendMessage = (message: string) => {
-    if (currentView === "home") {
-      setCurrentView("chat")
+    const startingFromHome = currentView === 'home'
+    if (startingFromHome) {
+      // Only create a new thread if there is no active thread or it's a pending unsent thread
+      const shouldCreate = !currentThreadId || messages.length === 0;
+      if (shouldCreate) {
+        createNewThread()
+      }
+      setCurrentView('chat')
     }
     sendMessage(message)
   }
@@ -101,33 +125,8 @@ export default function Home() {
     handleSubmit(e)
   }
 
-  const [settings, setSettings] = useState<SettingsData>({
-    notifications: {
-      weatherAlerts: true,
-      diseaseOutbreaks: true,
-      marketPrices: false,
-      generalUpdates: true,
-    },
-    appearance: {
-      theme: "system",
-      language: "English",
-      fontSize: "medium",
-    },
-    privacy: {
-      dataCollection: true,
-      locationTracking: true,
-      analyticsOptIn: false,
-    },
-    audio: {
-      soundEnabled: true,
-      voiceResponses: false,
-      volume: 50,
-    },
-  })
-
   useEffect(() => {
     const savedUserData = localStorage.getItem("cropwise-user-data")
-    const savedSettings = localStorage.getItem("cropwise-settings")
 
     if (savedUserData) {
       const parsedUserData = JSON.parse(savedUserData)
@@ -146,10 +145,6 @@ export default function Home() {
       }
       setUserData(enhancedUserData)
       setIsOnboarding(false)
-    }
-
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings))
     }
   }, [])
 
@@ -176,77 +171,32 @@ export default function Home() {
     }
   }
 
-  const handleSettingsUpdate = (newSettings: SettingsData) => {
-    setSettings(newSettings)
-    localStorage.setItem("cropwise-settings", JSON.stringify(newSettings))
-  }
-
-  const handleExportData = () => {
-    const dataToExport = {
-      userData,
-      settings,
-      exportDate: new Date().toISOString(),
-    }
-    const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: "application/json" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "cropwise-data-export.json"
-    a.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const handleClearData = () => {
-    if (confirm("Are you sure you want to clear all data? This action cannot be undone.")) {
-      localStorage.removeItem("cropwise-user-data")
-      localStorage.removeItem("cropwise-settings")
-      setUserData(null)
-      setIsOnboarding(true)
-      setCurrentView("home")
-    }
-  }
-
-  const handleResetSettings = () => {
-    if (confirm("Reset all settings to default values?")) {
-      const defaultSettings: SettingsData = {
-        notifications: {
-          weatherAlerts: true,
-          diseaseOutbreaks: true,
-          marketPrices: false,
-          generalUpdates: true,
-        },
-        appearance: {
-          theme: "system",
-          language: "English",
-          fontSize: "medium",
-        },
-        privacy: {
-          dataCollection: true,
-          locationTracking: true,
-          analyticsOptIn: false,
-        },
-        audio: {
-          soundEnabled: true,
-          voiceResponses: false,
-          volume: 50,
-        },
-      }
-      setSettings(defaultSettings)
-      localStorage.setItem("cropwise-settings", JSON.stringify(defaultSettings))
-    }
-  }
-
   const handleLocationLanguageSave = (data: { location: string; language: string }) => {
+    localStorage.setItem('cropwise-language', data.language) // code
+    // Map code -> full name via translations hook constant (lazy require to avoid circular import)
+    let full = data.language
+    try {
+      // dynamic import not needed; replicate minimal map to avoid heavy import
+      const map: Record<string,string> = { en:'English', hi:'हिंदी', bn:'বাংলা', mr:'मराठी', te:'తెలుగు', ta:'தமிழ்', gu:'ગુજરાતી', ur:'اردو', kn:'ಕನ್ನಡ', or:'ଓଡ଼ିଆ' }
+      if (map[data.language]) full = map[data.language]
+    } catch {}
     if (userData) {
-      const updatedUserData = {
-        ...userData,
-        location: data.location,
-        language: data.language,
-      }
+      const updatedUserData = { ...userData, location: data.location, language: full }
       setUserData(updatedUserData)
-      localStorage.setItem("cropwise-user-data", JSON.stringify(updatedUserData))
+      localStorage.setItem('cropwise-user-data', JSON.stringify(updatedUserData))
+    } else {
+      try {
+        const raw = localStorage.getItem('cropwise-user-data')
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          parsed.language = full
+          parsed.location = data.location
+          localStorage.setItem('cropwise-user-data', JSON.stringify(parsed))
+        }
+      } catch {}
     }
-    setCurrentView("home")
+    window.dispatchEvent(new CustomEvent('languageChanged', { detail: { language: data.language } }))
+    setCurrentView('home')
   }
 
   // Simplified handlers for our new chat system
@@ -277,24 +227,72 @@ export default function Home() {
     if (currentView === "home") {
       setCurrentView("chat")
     }
-    // The hook handles clearing messages internally
+    createNewThread()
   }
 
+  // Handler to refresh suggested queries
+  const handleRefreshSuggestions = () => {
+    if (messages.length >= 2 && currentThreadId) {
+      refreshSuggestedQueries(messages, currentThreadId);
+    }
+  }
+
+  // Clear suggestions when switching threads or starting new conversation
+  useEffect(() => {
+    if (currentThreadId && messages.length === 0) {
+      // New conversation started, clear any existing suggestions
+      console.log('New conversation detected, clearing suggestions');
+    }
+  }, [currentThreadId, messages.length]);
+
+  // Function to get suggested queries - now using our AI-generated suggestions or fallback
   const getSuggestedQueries = () => {
-    if (!userData) {
-      return [t("identifyCropDisease"), t("weatherAdvice"), t("pestControlTips"), t("fertilizerGuidance")]
+    // Prefer AI suggestions
+    if (suggestedQueries && suggestedQueries.length > 0) return suggestedQueries;
+
+    // Try localStorage (persisted per thread)
+    try {
+      const raw = localStorage.getItem('suggested-queries');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.queries?.length) return parsed.queries;
+      }
+    } catch {}
+
+    // Personalized static fallback
+    const crop = userData?.mainCrops || t('identifyCropDisease');
+    const loc = userData?.location || '';
+    const lang = userData?.language || 'en';
+
+    const base: string[] = [
+      `${crop} disease identification`,
+      loc ? `Weather advice for ${loc}` : t('weatherAdvice'),
+      `Fertilizer guidance for ${crop}`,
+      'Organic pest control',
+      'Soil health tips',
+    ];
+
+    // Light language tailoring (example: Hindi / Oriya replace some English words)
+    if (lang === 'hi') {
+      return [
+        `${crop} की बीमारी पहचान`,
+        loc ? `${loc} के मौसम की सलाह` : 'मौसम सलाह',
+        `${crop} के लिए खाद मार्गदर्शन`,
+        'जैविक कीट नियंत्रण',
+        'मिट्टी की सेहत सुझाव'
+      ];
+    }
+    if (lang === 'or') {
+      return [
+        `${crop} ରୋଗ ପରିଚୟ`,
+        loc ? `${loc} ପାଗ ପରାମର୍ଶ` : 'ପାଗ ପରାମର୍ଶ',
+        `${crop} ର ଖାଦ୍ୟ ସଳାହ`,
+        'ଜୈ୵ କୀଟ ନିୟନ୍ତ୍ରଣ',
+        'ମାଟି ସ୍ୱାସ୍ଥ୍ୟ ସୁପରିଶ'
+      ];
     }
 
-    const location = userData.location || ""
-
-    return [
-      `${userData.mainCrops} disease identification`,
-      `Weather advice for ${location}`,
-      `Fertilizer guidance for ${userData.mainCrops}`,
-      "Organic pest control",
-      "Harvest timing advice",
-      "Soil health tips",
-    ]
+    return base.slice(0,5);
   }
 
   if (isOnboarding) {
@@ -302,22 +300,62 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50 flex flex-col lg:pl-80">
       <MobileHeader
-        onMenuClick={() => setCurrentView("settings")}
-        onLocationClick={() => setCurrentView("location")}
-        location={userData?.location || "Select Location"}
+        onMenuClick={() => setIsSidebarOpen(true)}
         onNewChatClick={handleResetChat}
         showBackButton={currentView !== "home"}
         onBackClick={() => setCurrentView("home")}
+      />      {/* Conversation Sidebar */}
+      <ConversationSidebar
+        isOpen={isSidebarOpen}
+        threads={chatThreads.map(thread => ({
+          ...thread,
+          createdAt: new Date(thread.createdAt),
+          updatedAt: new Date(thread.updatedAt)
+        }))}
+        currentThreadId={currentThreadId}
+        onThreadSelect={(threadId) => {
+          // First ensure we're not in pending new thread state
+          switchToThread(threadId)
+          // Then update the view
+          setCurrentView("chat")
+          setIsSidebarOpen(false)
+        }}
+        onNewChat={() => {
+          createNewThread()
+          setCurrentView("chat")
+          setIsSidebarOpen(false)
+        }}
+        onDeleteThread={deleteThread}
+        onClose={() => setIsSidebarOpen(false)}
+        onProfileClick={() => {
+          setCurrentView("profile")
+          setIsSidebarOpen(false)
+        }}
+        userName={userData?.name || "Farmer"}
       />
 
-      <main className="flex-1 flex flex-col pb-20">
+  <main className="flex-1 flex flex-col pb-20 max-w-4xl mx-auto w-full">
         {currentView === "home" && (
           <>
-            <div className="flex-1 overflow-y-auto">
-              <WeatherSection location={userData?.location || "Unknown Location"} />
-              {/* <MarketPriceSection /> */}
+            <div className="flex-1 overflow-y-auto space-y-4">
+              <WeatherSection 
+                location={userData?.location || "Unknown Location"} 
+                onLocationClick={() => setCurrentView("location")}
+              />
+              {/* Suggested queries block on home */}
+              <div className="px-4">
+                <SuggestedQueries
+                  queries={getSuggestedQueries()}
+                  isLoading={isLoadingSuggestions && suggestedQueries.length === 0}
+                  error={suggestionsError}
+                  onQuerySelect={handleSendMessage}
+                  onRefresh={() => handleRefreshSuggestions()}
+                  isAgentResponding={status === 'streaming' || status === 'submitted'}
+                  className="max-w-3xl mx-auto"
+                />
+              </div>
             </div>
 
             <EnhancedChatInput
@@ -325,17 +363,14 @@ export default function Home() {
               setInput={setInput}
               selectedImages={selectedImages}
               triggerImageUpload={triggerImageUpload}
-              handleSubmit={wrappedHandleSubmit}
-              isLoading={status === 'streaming'}
-              suggestedQueries={getSuggestedQueries()}
-              onSuggestedQueryClick={handleSendMessage}
-            />
-
-            <ImagePreview
-              selectedImages={selectedImages}
               removeImage={removeImage}
               clearImages={clearImages}
               formatFileSize={formatFileSize}
+              handleSubmit={wrappedHandleSubmit}
+              sendMessage={wrappedSendMessage}
+              isLoading={status === 'streaming'}
+              suggestedQueries={getSuggestedQueries()}
+              onSuggestedQueryClick={handleSendMessage}
             />
           </>
         )}
@@ -347,6 +382,8 @@ export default function Home() {
                 messages={messages} 
                 isLoading={status === 'streaming'} 
                 streamingState={streamingState}
+                suggestedQueries={status === 'idle' ? suggestedQueries : []}
+                onSuggestedQueryClick={handleSendMessage}
               />
             </div>
 
@@ -355,17 +392,14 @@ export default function Home() {
               setInput={setInput}
               selectedImages={selectedImages}
               triggerImageUpload={triggerImageUpload}
-              handleSubmit={wrappedHandleSubmit}
-              isLoading={status === 'streaming'}
-              suggestedQueries={getSuggestedQueries()}
-              onSuggestedQueryClick={handleSendMessage}
-            />
-
-            <ImagePreview
-              selectedImages={selectedImages}
               removeImage={removeImage}
               clearImages={clearImages}
               formatFileSize={formatFileSize}
+              handleSubmit={wrappedHandleSubmit}
+              sendMessage={sendMessage}
+              isLoading={status === 'streaming'}
+              suggestedQueries={getSuggestedQueries()}
+              onSuggestedQueryClick={handleSendMessage}
             />
           </>
         )}
@@ -404,17 +438,6 @@ export default function Home() {
           </div>
         )}
       </main>
-
-      {currentView === "settings" && (
-        <SettingsPanel
-          settings={settings}
-          onUpdate={handleSettingsUpdate}
-          onClose={() => setCurrentView("home")}
-          onExportData={handleExportData}
-          onClearData={handleClearData}
-          onResetSettings={handleResetSettings}
-        />
-      )}
-    </div>
+  </div>
   )
 }

@@ -1,16 +1,21 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ImageIcon, Send, Mic, Loader2 } from "lucide-react";
+import { ImageIcon, Send, Mic, Loader2, X } from "lucide-react";
 import { ImageFile } from '@/hooks/use-image-upload';
 import { useVoiceRecording } from '@/hooks/use-voice-recording';
+import Image from 'next/image';
 
 interface EnhancedChatInputProps {
   input: string;
   setInput: (value: string) => void;
   selectedImages: ImageFile[];
   triggerImageUpload: () => void;
+  removeImage: (imageId: string) => void;
+  clearImages: () => void;
+  formatFileSize: (bytes: number) => string;
   handleSubmit: (e: React.FormEvent) => void;
+  sendMessage?: (message: string) => void; // Add direct send message function
   isLoading: boolean;
   suggestedQueries?: string[];
   onSuggestedQueryClick?: (query: string) => void;
@@ -21,13 +26,16 @@ export function EnhancedChatInput({
   setInput,
   selectedImages,
   triggerImageUpload,
+  removeImage,
+  clearImages,
+  formatFileSize,
   handleSubmit,
+  sendMessage,
   isLoading,
   suggestedQueries = [],
   onSuggestedQueryClick
 }: EnhancedChatInputProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isVoiceSubmission, setIsVoiceSubmission] = useState(false);
 
   // Use the voice recording hook
   const {
@@ -39,27 +47,35 @@ export function EnhancedChatInput({
     stopRecording,
   } = useVoiceRecording({
     onTranscriptionComplete: (transcript) => {
-      // Set transcript and mark as voice submission
-      if (transcript.trim()) {
-        setInput(transcript);
-        setIsVoiceSubmission(true);
+      console.log('Voice transcription completed:', transcript);
+      console.log('Selected images count:', selectedImages.length);
+      
+      // Submit immediately with the transcript
+      if (transcript.trim() || selectedImages.length > 0) {
+        console.log('Auto-submitting voice transcription with images');
+        
+        // Use sendMessage directly if available, otherwise use handleSubmit
+        if (sendMessage) {
+          // Clear the input first
+          setInput('');
+          // Send the message directly
+          sendMessage(transcript);
+        } else {
+          // Fallback to the original method
+          setInput(transcript);
+          setTimeout(() => {
+            const syntheticEvent = {
+              preventDefault: () => {}
+            } as React.FormEvent;
+            handleSubmit(syntheticEvent);
+          }, 50);
+        }
       }
     },
     onError: (error) => {
       console.error('Voice recording error:', error);
     }
   });
-
-  // Auto-submit when voice transcription sets the input
-  useEffect(() => {
-    if (isVoiceSubmission && input.trim()) {
-      setIsVoiceSubmission(false);
-      const syntheticEvent = {
-        preventDefault: () => {}
-      } as React.FormEvent;
-      handleSubmit(syntheticEvent);
-    }
-  }, [input, isVoiceSubmission, handleSubmit]);
 
   const handleKeyPress: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -76,7 +92,8 @@ export function EnhancedChatInput({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 p-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 max-w-4xl mx-auto">
+    <div className="fixed bottom-0 left-0 right-0 lg:left-80 z-30 p-4 flex justify-center bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+      <div className="w-full max-w-4xl mx-auto">
       {/* Suggested Queries */}
       {suggestedQueries.length > 0 && (
         <div className="mb-3">
@@ -103,7 +120,47 @@ export function EnhancedChatInput({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+      {/* Image Preview - Attached to Input */}
+      {selectedImages.length > 0 && (
+        <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-emerald-700">
+              Selected Images ({selectedImages.length})
+            </span>
+            <button
+              onClick={clearImages}
+              className="text-xs text-red-600 hover:text-red-800 font-medium"
+            >
+              Clear All
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {selectedImages.map((image) => (
+              <div key={image.id} className="relative group">
+                <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-emerald-200">
+                  <Image
+                    src={`data:${image.type};base64,${image.data}`}
+                    alt={image.name}
+                    fill
+                    className="object-cover"
+                  />
+                  <button
+                    onClick={() => removeImage(image.id)}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="mt-1 text-xs text-emerald-600 text-center truncate w-16">
+                  {formatFileSize(image.size)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+  <form onSubmit={handleSubmit} className="flex items-end gap-2">
         <div className="flex-1 flex items-end gap-2">
           <Button
             type="button"
@@ -162,20 +219,11 @@ export function EnhancedChatInput({
                 className="flex-1 h-10 text-sm pr-12"
                 disabled={isLoading}
               />
-              
-              {/* Image count indicator */}
-              {selectedImages.length > 0 && (
-                <div className="absolute right-12 top-1/2 transform -translate-y-1/2">
-                  <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">
-                    {selectedImages.length} 📷
-                  </span>
-                </div>
-              )}
             </div>
           )}
 
-          {/* Voice Recording Button */}
-          {!input.trim() && !isRecording && !isProcessing && selectedImages.length === 0 && !isLoading && (
+          {/* Voice Recording Button - Available when text input is empty, regardless of image selection */}
+          {!input.trim() && !isRecording && !isProcessing && !isLoading && (
             <Button
               type="button"
               variant="outline"
@@ -209,6 +257,7 @@ export function EnhancedChatInput({
         multiple
         className="hidden"
       />
+      </div>
     </div>
   );
 }

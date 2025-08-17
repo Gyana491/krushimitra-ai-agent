@@ -5,17 +5,22 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Globe } from "lucide-react"
 import { useTranslation, type Language } from "@/hooks/use-translation"
+import { useUserContext } from "@/hooks/use-user-context"
 
 interface LanguageSelectorProps {
-  variant?: "header" | "settings"
+  variant?: "header" | "settings" | "sidebar"
 }
 
 export function LanguageSelector({ variant = "header" }: LanguageSelectorProps) {
   const { language, changeLanguage, languages } = useTranslation()
+  const { updateUserContext } = useUserContext()
   const [isOpen, setIsOpen] = useState(false)
 
   const handleLanguageChange = (newLanguage: Language) => {
+    // Update translation system
     changeLanguage(newLanguage)
+    // Update user context to sync with user profile
+    updateUserContext({ language: newLanguage })
     setIsOpen(false)
   }
 
@@ -46,6 +51,31 @@ export function LanguageSelector({ variant = "header" }: LanguageSelectorProps) 
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+    )
+  }
+
+  if (variant === "sidebar") {
+    return (
+      <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="w-full justify-start">
+            <Globe className="h-4 w-4 mr-2" />
+            Change Language
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-48">
+          {Object.entries(languages).map(([code, name]) => (
+            <DropdownMenuItem
+              key={code}
+              onClick={() => handleLanguageChange(code as Language)}
+              className={`cursor-pointer ${language === code ? "bg-emerald-50 text-emerald-700" : ""}`}
+            >
+              <span className="font-medium">{name}</span>
+              {language === code && <span className="ml-auto text-emerald-600">✓</span>}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     )
   }
 
