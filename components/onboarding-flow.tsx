@@ -66,9 +66,17 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   // Crop selection handled by component
 
   const nextStep = () => {
-  if (step < 4) {
+    // If leaving the location step (index 2), force manual persist
+    if (step === 2 && typeof window !== 'undefined') {
+      try { (window as unknown as { saveLocationData?: () => void }).saveLocationData?.() } catch {}
+    }
+    if (step < 4) {
       setStep(step + 1)
     } else {
+      // Final step completion: ensure location persisted
+      if (typeof window !== 'undefined') {
+        try { (window as unknown as { saveLocationData?: () => void }).saveLocationData?.() } catch {}
+      }
       onComplete(data)
     }
   }
@@ -157,6 +165,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 const address = loc.address
                 updateData("location", address)
               }}
+              autoSaveToLocalStorage={false}
               className="[&_input]:bg-emerald-50 [&_input]:border-emerald-200 [&_input]:hover:bg-emerald-100 [&_input]:focus:border-emerald-500 [&_input]:focus:ring-emerald-500 [&_input]:transition-colors [&_button]:bg-emerald-50 [&_button]:border-emerald-200 [&_button]:hover:bg-emerald-100 [&_button]:transition-colors"
             />
             {data.location && (

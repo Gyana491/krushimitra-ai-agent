@@ -89,6 +89,7 @@ export const ChangeLocationPopup: React.FC<ChangeLocationPopupProps> = ({
             <GoogleLocationPicker
               value={location}
               onChange={handleLocationChange}
+              autoSaveToLocalStorage={false}
             />
 
             {/* Timezone & unit selectors removed per requirements */}

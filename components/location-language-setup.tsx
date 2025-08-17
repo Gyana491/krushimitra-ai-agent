@@ -61,10 +61,11 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
 
   const handleSaveLocation = async () => {
     setIsSavingLocation(true)
+    try { (window as unknown as { saveLocationData?: () => void }).saveLocationData?.() } catch {}
     setTimeout(() => {
       onSave(data)
       setIsSavingLocation(false)
-    }, 1000)
+    }, 500)
   }
 
   const handleSaveLanguage = async () => {
@@ -117,6 +118,7 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
               onChange={handleLocationChange}
               placeholder="Search or autodetect your farm location"
               className="w-full"
+              autoSaveToLocalStorage={false}
             />
           </div>
 

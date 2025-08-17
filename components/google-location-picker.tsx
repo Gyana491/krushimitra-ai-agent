@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Loader2, MapPin } from 'lucide-react'
@@ -36,11 +36,54 @@ declare const google: GoogleMapsLike; // Runtime provided by script
 export interface SelectedLocationData { address: string; latitude: number; longitude: number; cityName?: string; stateName?: string; country?: string }
 interface GoogleLocationPickerProps { value?: string; onChange: (loc: SelectedLocationData) => void; placeholder?: string; className?: string; autoSaveToLocalStorage?: boolean }
 
-export function GoogleLocationPicker({ value, onChange, placeholder, className, autoSaveToLocalStorage = true }: GoogleLocationPickerProps) {
+export function GoogleLocationPicker({ value, onChange, placeholder, className, autoSaveToLocalStorage = false }: GoogleLocationPickerProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [scriptLoaded, setScriptLoaded] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Keep last emitted location to allow external consumers (popup) to persist manually
+  const lastLocationRef = useRef<SelectedLocationData | null>(null)
+
+  const writeLocation = useCallback((loc: SelectedLocationData) => {
+    try {
+      localStorage.setItem('cropwise-selected-location', JSON.stringify({
+        address: loc.address,
+        cityName: loc.cityName,
+        stateName: loc.stateName,
+        lat: loc.latitude,
+        lng: loc.longitude
+      }))
+      window.dispatchEvent(new Event('selectedLocationChanged'))
+    } catch {}
+  }, [])
+
+  const maybeAutoPersist = useCallback((loc: SelectedLocationData) => {
+    if (autoSaveToLocalStorage) writeLocation(loc)
+  }, [autoSaveToLocalStorage, writeLocation])
+
+  // Expose a manual save hook for components like ChangeLocationPopup
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    ;(window as unknown as { saveLocationData?: () => void }).saveLocationData = () => {
+  // If user typed something but autocomplete never fired, synthesize minimal location
+      const inputVal = inputRef.current?.value?.trim()
+      if (inputVal && !lastLocationRef.current) {
+        const synthetic: SelectedLocationData = { address: inputVal, latitude: 0, longitude: 0 }
+        lastLocationRef.current = synthetic
+        onChange(synthetic)
+    writeLocation(synthetic) // manual save always writes
+        return
+      }
+      if (lastLocationRef.current) {
+    writeLocation(lastLocationRef.current) // manual save always writes
+      }
+    }
+    return () => {
+      // Clean up only if our reference matches (avoid clobbering if multiple pickers exist)
+      const w = window as unknown as { saveLocationData?: () => void }
+      if (w.saveLocationData) delete w.saveLocationData
+    }
+  }, [onChange, writeLocation])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -103,34 +146,15 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
         // Use the formatted address from Google (includes complete address with postal code)
         const completeAddress = place.formatted_address || inputRef.current!.value
         
-        const loc: SelectedLocationData = { 
-          address: completeAddress, 
-          latitude: lat, 
-          longitude: lng, 
-          cityName: city, 
-          stateName: state, 
-          country 
-        }
-        
-        onChange(loc)
-        
-        if (autoSaveToLocalStorage) {
-          try { 
-            localStorage.setItem('cropwise-selected-location', JSON.stringify({ 
-              address: loc.address, 
-              cityName: loc.cityName, 
-              stateName: loc.stateName, 
-              lat: loc.latitude, 
-              lng: loc.longitude 
-            }))
-            window.dispatchEvent(new Event('selectedLocationChanged'))
-          } catch {}
-        }
+  const loc: SelectedLocationData = { address: completeAddress, latitude: lat, longitude: lng, cityName: city, stateName: state, country }
+  lastLocationRef.current = loc
+  onChange(loc)
+    maybeAutoPersist(loc)
       })
     } catch { 
       setError('Autocomplete failed to initialize') 
     }
-  }, [scriptLoaded, onChange, autoSaveToLocalStorage])
+  }, [scriptLoaded, onChange, maybeAutoPersist])
 
   const handleUseGeolocation = () => {
     if (!navigator.geolocation) { setError('Geolocation not supported'); return }
@@ -184,7 +208,9 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
               inputRef.current.value = place.formatted_address
             }
             
+            lastLocationRef.current = loc
             onChange(loc)
+            maybeAutoPersist(loc)
           } else {
             // Fallback: use coordinates as address
             const loc: SelectedLocationData = {
@@ -197,7 +223,9 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
               inputRef.current.value = loc.address
             }
             
+            lastLocationRef.current = loc
             onChange(loc)
+            maybeAutoPersist(loc)
           }
         } catch (error) {
           console.error('Reverse geocoding failed:', error)
@@ -212,7 +240,9 @@ export function GoogleLocationPicker({ value, onChange, placeholder, className, 
             inputRef.current.value = loc.address
           }
           
+          lastLocationRef.current = loc
           onChange(loc)
+          maybeAutoPersist(loc)
         }
         
         setLoading(false)
