@@ -576,8 +576,7 @@ Context Injection ← User Profile ← Location Data ← Previous Conversations 
 
 ### Design System Architecture
 
-
-```### Mobile-First Design Philosophy
+```###
 
 #### Why Mobile-First for Agricultural Users?
 
@@ -624,6 +623,7 @@ Rural farmers primarily access internet through smartphones due to cost and infr
 **Our KCC Vector Database Implementation:**
 
 ```
+
 Custom Vector Database: 64,000+ processed records
 Source: Kisan Call Center (Government of India)
 Vector Embeddings: Generated for semantic similarity search
@@ -631,20 +631,21 @@ Processing: Cleaned, structured, and optimized for agricultural queries
 Backend: Deployed as separate microservice for RAG operations
 
 Vector Embedding Structure: {
-  id: string,                    // Unique vector identifier
-  embedding: float[],            // 1536-dimensional vector representation
-  similarity_score: number,      // Cosine similarity for query matching
-  StateName: string,            // Geographic context for localization
-  DistrictName: string,         // District-level agricultural context
-  Category: string,             // Agricultural problem classification
-  QueryType: string,            // Specific farming issue type
-  QueryText: string,            // Original farmer question (processed)
-  KccAns: string,              // Expert-verified agricultural solution
-  Crop: string,                // Relevant crop information
-  Season: string,              // Agricultural season context
-  CreatedOn: string,           // Temporal relevance
-  confidence: number           // Solution reliability score
+id: string,                    // Unique vector identifier
+embedding: float[],            // 1536-dimensional vector representation
+similarity_score: number,      // Cosine similarity for query matching
+StateName: string,            // Geographic context for localization
+DistrictName: string,         // District-level agricultural context
+Category: string,             // Agricultural problem classification
+QueryType: string,            // Specific farming issue type
+QueryText: string,            // Original farmer question (processed)
+KccAns: string,              // Expert-verified agricultural solution
+Crop: string,                // Relevant crop information
+Season: string,              // Agricultural season context
+CreatedOn: string,           // Temporal relevance
+confidence: number           // Solution reliability score
 }
+
 ```
 #### RAG-Powered Retrieval System
 
@@ -725,9 +726,11 @@ Vector Embedding Structure: {
 **Multi-Layer Validation Process:**
 
 ```
-User Query → KCC Vector DB Retrieval → Weather Data Integration → 
-Market Price Analysis → Government Scheme Lookup → Web Research Verification → 
+
+User Query → KCC Vector DB Retrieval → Weather Data Integration →
+Market Price Analysis → Government Scheme Lookup → Web Research Verification →
 Context Application → Accuracy Scoring → Final Response Generation
+
 ```
 **Why This Approach Guarantees Accuracy:**
 
@@ -777,9 +780,11 @@ Agricultural terminology varies significantly across regions, and farming practi
 **Intelligent Translation Pipeline:**
 
 ```
-User Query → Language Detection → Agricultural Context Analysis → 
-English Translation for Tools → Tool Execution → Result Analysis → 
+
+User Query → Language Detection → Agricultural Context Analysis →
+English Translation for Tools → Tool Execution → Result Analysis →
 Cultural Adaptation → Response Translation → User Language Delivery
+
 ```
 #### Advanced Language Processing Implementation
 
@@ -803,6 +808,7 @@ const processMultilingualQuery = async (query: string, userLanguage: string) => 
   return finalResponse;
 }
 ```
+
 #### Advanced Language Features
 
 **Contextual Translation Intelligence**
@@ -869,9 +875,11 @@ const processMultilingualQuery = async (query: string, userLanguage: string) => 
 #### 1. Repository Setup
 
 ```bash
-git clone https://github.com/Gyana491/cropwise-frontend.git
-cd cropwise-frontend/frontend
+git clone https://github.com/Gyana491/krushimitra-ai-agent
+
+cd krushimitra-ai-agent
 ```
+
 #### 2. Dependency Installation
 
 ```bash
@@ -882,6 +890,7 @@ npm install
 yarn install    # Using Yarn
 pnpm install    # Using pnpm for faster installs
 ```
+
 #### 3. Environment Configuration
 
 ```bash
@@ -892,6 +901,7 @@ cp .env.example .env.local
 nano .env.local    # Linux/Mac
 notepad .env.local # Windows
 ```
+
 #### 4. Development Server Launch
 
 ```bash
@@ -905,6 +915,7 @@ npm run dev:mastra
 open http://localhost:3000  # Mac
 start http://localhost:3000 # Windows
 ```
+
 ### Environment Configuration
 
 #### Complete Environment Variables Setup
@@ -929,6 +940,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_APP_NAME=Farmeasy
 NODE_ENV=development
 ```
+
 #### API Key Acquisition Guide
 
 **Google Generative AI Setup:**
@@ -1010,6 +1022,7 @@ frontend/
 │   └── index/            # Data indices
 └── public/               # Static assets
 ```
+
 #### Development Commands
 
 ```bash
@@ -1031,6 +1044,7 @@ npm run build
 # Start production server
 npm run start
 ```
+
 #### Code Quality Tools
 
 - **TypeScript**: Strict type checking
@@ -1057,6 +1071,7 @@ vercel env add GOOGLE_GENERATIVE_AI_API_KEY
 vercel env add SARVAM_API_KEY
 vercel env add MANDI_PRICE_API_KEY
 ```
+
 #### Docker Deployment
 
 ```dockerfile
@@ -1070,6 +1085,7 @@ RUN npm run build
 EXPOSE 3000
 CMD ["npm", "start"]
 ```
+
 #### AWS/GCP Deployment
 
 ```bash
@@ -1079,6 +1095,7 @@ docker build -t farmeasy-frontend .
 # Deploy to cloud
 # (Platform-specific commands)
 ```
+
 ### 🔧 Production Configuration
 
 #### Performance Optimizations
@@ -1103,111 +1120,3 @@ docker build -t farmeasy-frontend .
 - **Rate Limiting**: API rate limiting
 - **Input Validation**: Sanitization and validation
 - **Authentication**: Secure user sessions
-
-## Contributing
-
-### 🤝 How to Contribute
-
-#### 1. Fork & Clone
-
-```bash
-git clone https://github.com/your-username/cropwise-frontend.git
-cd cropwise-frontend/frontend
-```
-#### 2. Create Feature Branch
-
-```bash
-git checkout -b feature/your-feature-name
-```
-#### 3. Development Setup
-
-```bash
-npm install
-cp .env.example .env.local
-# Add your API keys
-npm run dev
-```
-#### 4. Make Changes
-
-- Follow TypeScript best practices
-- Add tests for new features
-- Update documentation
-- Follow commit message conventions
-
-#### 5. Submit Pull Request
-
-```bash
-git add .
-git commit -m "feat: add new farming tool integration"
-git push origin feature/your-feature-name
-```
-### 📝 Development Guidelines
-
-#### Code Standards
-
-- **TypeScript**: Strict type checking required
-- **React**: Functional components with hooks
-- **Naming**: Descriptive, consistent naming conventions
-- **Comments**: JSDoc for functions, inline for complex logic
-- **Performance**: Optimize for mobile-first experience
-
-#### Testing Strategy
-
-- **Unit Tests**: Jest + React Testing Library
-- **Integration Tests**: API endpoint testing
-- **E2E Tests**: Playwright for critical user flows
-- **Manual Testing**: Cross-browser, mobile device testing
-
-#### Documentation Requirements
-
-- **README Updates**: For new features
-- **API Documentation**: OpenAPI specs for new endpoints
-- **Component Documentation**: Storybook stories
-- **User Guides**: For complex features
-
-### 🎯 Priority Areas for Contribution
-
-#### High Priority
-
-1. **Additional Language Support**: More regional languages
-2. **Offline Functionality**: PWA features for poor connectivity
-3. **Advanced Image Analysis**: Crop disease detection improvements
-4. **Voice Interface**: Enhanced voice command support
-5. **Market Integration**: More data sources and predictions
-
-#### Medium Priority
-
-1. **Farmer Community**: Social features and knowledge sharing
-2. **Government Integration**: Policy updates and scheme information
-3. **IoT Integration**: Sensor data integration
-4. **Advanced Analytics**: Farm performance tracking
-5. **Mobile App**: React Native mobile application
-
-#### Documentation & Testing
-
-1. **Test Coverage**: Increase test coverage to 90%+
-2. **Performance Testing**: Load testing and optimization
-3. **Accessibility**: WCAG compliance improvements
-4. **User Experience**: UX research and improvements
-5. **Internationalization**: Complete i18n implementation
-
----
-
-## Support & Community
-
-### Getting Help
-
-- **Documentation**: This comprehensive technical documentation
-- **GitHub Issues**: Bug reports and feature requests
-- **GitHub Discussions**: Technical questions and community support
-- **Email Support**: Direct contact for urgent technical issues
-
-### Community & Collaboration
-
-- **Developer Community**: Active contributors improving agricultural AI
-- **Farmer User Base**: Real users providing feedback and validation
-- **Agricultural Researchers**: Academic partnerships for knowledge validation
-- **NGO Collaborations**: Organizations working with farming communities
-- **Government Partnerships**: Integration with agricultural development programs
-
-
