@@ -9,7 +9,7 @@
 
 **KrushiMitra (Farmeasy)** is a mission-critical agricultural AI platform designed with one primary goal: **provide the most accurate farming advice possible because every agricultural query has a price - wrong advice can devastate crops and destroy farmers' livelihoods.**
 
-Built on advanced agentic AI technology with custom-built vector databases and multi-source verification systems, KrushiMitra serves as a trusted digital farming companion that understands the life-or-death importance of accurate agricultural guidance.
+Built on advanced agentic AI technology grounded with custom-built vector databases and multi-source verification systems, KrushiMitra serves as a trusted digital farming companion that understands the life-or-death importance of accurate agricultural guidance.
 
 ### Mission-Critical Agricultural Intelligence
 
@@ -1210,12 +1210,4 @@ git push origin feature/your-feature-name
 - **NGO Collaborations**: Organizations working with farming communities
 - **Government Partnerships**: Integration with agricultural development programs
 
-### License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
-
-**Farmeasy - Advanced Agentic AI for Agricultural Intelligence**
-
-*Empowering farmers worldwide through autonomous AI agents, multi-source knowledge integration, and intelligent agricultural decision support systems.*
