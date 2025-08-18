@@ -118,7 +118,7 @@ export function LocationLanguageSetup({ initialData, onSave, onCancel }: Locatio
               onChange={handleLocationChange}
               placeholder="Search or autodetect your farm location"
               className="w-full"
-              autoSaveToLocalStorage={false}
+              autoSaveToLocalStorage={true}
             />
           </div>
 

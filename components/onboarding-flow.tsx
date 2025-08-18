@@ -165,7 +165,7 @@ export function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 const address = loc.address
                 updateData("location", address)
               }}
-              autoSaveToLocalStorage={false}
+              autoSaveToLocalStorage={true}
               className="[&_input]:bg-emerald-50 [&_input]:border-emerald-200 [&_input]:hover:bg-emerald-100 [&_input]:focus:border-emerald-500 [&_input]:focus:ring-emerald-500 [&_input]:transition-colors [&_button]:bg-emerald-50 [&_button]:border-emerald-200 [&_button]:hover:bg-emerald-100 [&_button]:transition-colors"
             />
             {data.location && (
