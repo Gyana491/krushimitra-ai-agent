@@ -25,8 +25,6 @@ export const kccAgent = new Agent({
          - location intent: current location, named place, none
          - timeframe (e.g., today, tomorrow, next week, harvest stage) if stated
          - goal (e.g., diagnose problem, get price, plan sowing, decide spraying)
-   2. Form an INTERNAL structured plan (STRICTLY NEVER output in any response; keep ONLY for internal use):
-      PLAN: { intent: "market price", crop: "wheat", location: "current", timeframe: "today", nextTools: [kccDatabaseTool, mandiPriceTool] }
       3. Decide tools AFTER intent extraction:
          - Always include kccDatabaseTool first, and pass the entire translated query (in simple English) as-is, without extracting or filtering for crop, intent, or keywords. Do not add extra filter parameters—just search using the full query.
          - Every time you call kccDatabaseTool, also call webResearch tool in parallel to verify and ensure the most accurate information for the farmer. When calling webResearch, always try to include the user's location context (city name, State name) to make the search results more relevant and accurate.
