@@ -68,11 +68,6 @@ export const kccDatabaseTool = createTool({
 const queryKCCAPI = async (params: {
   query: string;
   topK?: number;
-  stateName?: string;
-  districtName?: string;
-  category?: string;
-  season?: string;
-  crop?: string;
 }): Promise<{
   totalFound: number;
   relevantResults: Array<{
@@ -101,20 +96,6 @@ const queryKCCAPI = async (params: {
       query: params.query,
       topK: topK,
     };
-
-    // Add filters if provided
-    const filters: Record<string, string> = {};
-    if (params.stateName) filters.StateName = params.stateName;
-    if (params.districtName) filters.DistrictName = params.districtName;
-    if (params.category) filters.Category = params.category;
-    if (params.season) filters.Season = params.season;
-    if (params.crop) filters.Crop = params.crop;
-
-    if (Object.keys(filters).length > 0) {
-      requestBody.filters = filters;
-    }
-
-    console.log('Querying KCC API with:', requestBody);
 
     // Make API call
     const response = await fetch(`${KCC_API_BASE_URL}/api/search`, {
