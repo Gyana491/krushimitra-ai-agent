@@ -85,7 +85,7 @@ const getMandiPrices = async (params: {
   limit?: number;
   offset?: number;
 }) => {
-  const API_KEY = '579b464db66ec23bdd000001f7b9118f0392498c416efae957d3f2c9';
+  const API_KEY = `${process.env.MANDI_PRICE_API_KEY}`;
   const BASE_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
   
   // Build query parameters
