@@ -199,7 +199,7 @@ export const kccAgent = new Agent({
       - For "weather in Delhi", "Mumbai weather" - use location parameter with clean city name
       - Always check user context first for coordinates before using city name fallback
 `,
-  model: google('gemini-2.0-flash'),
+  model: google('gemini-2.5-flash'),
   tools: { 
     kccDatabaseTool, 
     weatherTool, 
