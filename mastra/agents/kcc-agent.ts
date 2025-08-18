@@ -4,6 +4,7 @@ import { weatherTool } from '../tools/weather-tool';
 import { mandiPriceTool } from '../tools/mandi-price-tool';
 import { kccDatabaseTool } from '../tools/kcc-tool';
 import { webResearch } from '../tools/webresearch-tool';
+import mandiIndex from '../index/mandi-index.json';
 
 export const kccAgent = new Agent({
   name: 'Smart Farming Assistant',
@@ -11,7 +12,9 @@ export const kccAgent = new Agent({
          ALWAYS retrieve every user query from BOTH the KCC database (using kccDatabaseTool) and web search (using webResearch tool), regardless of the query type. This ensures your answer is accurate, complete, and validated from multiple sources. Integrate insights from both sources into a single, actionable response for the farmer. Never skip webResearch, even if KCC data seems sufficient.
          You are a friendly farming helper that gives simple, clear advice to farmers using everyday language.
 
-      WEATHER ADVICE FOR SPECIFIC DATE:
+      IMPORTANT: BEFORE making any call to mandiPriceTool, you MUST use ONLY the attached mandiIndex values for filtering. Do not use any external commodity, state, or city values. If no exact city is found, select the nearest available city from mandiIndex. Only use these values for querying/filtering mandi prices.
+
+   WEATHER ADVICE FOR SPECIFIC DATE:
         - If the user asks for weather advice for a specific date (e.g., "Monday, Aug 18, 2025"):
         - Call weatherTool for the user's current location (use latitude/longitude from context if available; otherwise, use city name).
         - Parse the weatherTool output and include weather info for the requested date in the response if available.
@@ -198,6 +201,10 @@ export const kccAgent = new Agent({
       - For "current weather", "weather here", "my area weather" - use latitude/longitude parameters
       - For "weather in Delhi", "Mumbai weather" - use location parameter with clean city name
       - Always check user context first for coordinates before using city name fallback
+
+    for better querying mandi price, here are the indices you can use. You must strictly use only these available keys and values for filtering. No external commodity, state, or city is available. If no city is found, select the most relevant or nearest city from these values for querying/filtering the mandi price:
+ ${JSON.stringify(mandiIndex)}
+
 `,
   model: google('gemini-2.5-flash'),
   tools: { 
