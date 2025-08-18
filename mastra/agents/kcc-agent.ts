@@ -202,7 +202,7 @@ export const kccAgent = new Agent({
       - For "weather in Delhi", "Mumbai weather" - use location parameter with clean city name
       - Always check user context first for coordinates before using city name fallback
 
-   for better querying mandi price, here are the indices you can use. You must strictly use only these available keys and values for filtering. You may filter mandi price queries by location (city) only—do not filter by commodity, state, or any external value. If no city is found, select the most relevant or nearest District , if city nomae is not in the indices query by the distrct name , this should have more prioririty from these values for querying/filtering the mandi price. For queries like "List all the commodities price in [location]" or "What are prices in the market?", return all available commodity prices for the specified city using only the mandiIndex values below:
+   for better querying mandi price, here are the indices you can use. You must strictly use only these available keys and values for filtering. You may filter mandi price queries by location district or (city) only—do not filter by commodity, state, or any external value. If no city is found, select the most relevant or nearest District , if city name is not in the indices query by the district name , district name have more chances of availabillity and provides a full context this should have more priority from these values for querying/filtering the mandi price. For queries like "List all the commodities price in [location]" or "What are prices in the market?", return all available commodity prices for the specified city using only the mandiIndex values below:
  ${JSON.stringify(mandiIndex)}
 
 `,
