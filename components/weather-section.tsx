@@ -259,8 +259,8 @@ export function WeatherSection({ location: initialLocation, onGetAdvice }: Weath
           </div>
         </div>
         {/* Weather Metrics */}
-        <div className="flex flex-row flex-wrap sm:grid sm:grid-cols-4 gap-2 mt-2 justify-between">
-          <div className="relative rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100/40 p-2 flex flex-col items-center text-center min-w-[70px] max-w-[80px] flex-1">
+        <div className="flex flex-row gap-2 sm:grid sm:grid-cols-4 sm:gap-4 mt-2 w-full">
+          <div className="flex-1 min-w-0 relative rounded-lg border border-blue-100 bg-gradient-to-br from-blue-50 to-blue-100/40 p-2 flex flex-col items-center text-center">
             <Cloud className="h-6 w-6 text-blue-500 mb-1" />
             <div className="text-[10px] font-medium text-blue-700 tracking-wide uppercase">{t("rainfall")}</div>
             <div className="font-semibold text-xs mt-0.5">
@@ -269,7 +269,7 @@ export function WeatherSection({ location: initialLocation, onGetAdvice }: Weath
                 : `${Math.round(weatherData?.forecast[selectedDay]?.precipitationChance || 0)}%`}
             </div>
           </div>
-          <div className="relative rounded-lg border border-green-100 bg-gradient-to-br from-green-50 to-green-100/40 p-2 flex flex-col items-center text-center min-w-[70px] max-w-[80px] flex-1">
+          <div className="flex-1 min-w-0 relative rounded-lg border border-green-100 bg-gradient-to-br from-green-50 to-green-100/40 p-2 flex flex-col items-center text-center">
             <Wind className="h-6 w-6 text-green-600 mb-1" />
             <div className="text-[10px] font-medium text-green-700 tracking-wide uppercase">{t("windSpeed")}</div>
             <div className="font-semibold text-xs mt-0.5">
@@ -278,7 +278,7 @@ export function WeatherSection({ location: initialLocation, onGetAdvice }: Weath
                 : `${Math.round(weatherData?.forecast[selectedDay]?.maxWindSpeed || 0)} km/h`}
             </div>
           </div>
-          <div className="relative rounded-lg border border-sky-100 bg-gradient-to-br from-sky-50 to-sky-100/40 p-2 flex flex-col items-center text-center min-w-[70px] max-w-[80px] flex-1">
+          <div className="flex-1 min-w-0 relative rounded-lg border border-sky-100 bg-gradient-to-br from-sky-50 to-sky-100/40 p-2 flex flex-col items-center text-center">
             <Droplets className="h-6 w-6 text-sky-600 mb-1" />
             <div className="text-[10px] font-medium text-sky-700 tracking-wide uppercase">{t("humidity")}</div>
             <div className="font-semibold text-xs mt-0.5">
@@ -287,7 +287,7 @@ export function WeatherSection({ location: initialLocation, onGetAdvice }: Weath
                 : `${Math.round(weatherData?.currentWeather.humidity || 0)}%`}
             </div>
           </div>
-          <div className="relative rounded-lg border border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100/40 p-2 flex flex-col items-center text-center min-w-[70px] max-w-[80px] flex-1">
+          <div className="flex-1 min-w-0 relative rounded-lg border border-orange-100 bg-gradient-to-br from-orange-50 to-orange-100/40 p-2 flex flex-col items-center text-center">
             <Compass className="h-6 w-6 text-orange-600 mb-1" />
             <div className="text-[10px] font-medium text-orange-700 tracking-wide uppercase">{t("feelsLike")}</div>
             <div className="font-semibold text-xs mt-0.5">
