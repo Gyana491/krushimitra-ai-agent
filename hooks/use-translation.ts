@@ -20,16 +20,16 @@ export const LANGUAGES = {
 const translations = {
   // App Header
   appName: {
-    en: "CropWise",
-    hi: "क्रॉपवाइज़",
-    bn: "ক্রপওয়াইজ",
-    mr: "क्रॉपवाइज",
-    te: "క్రాప్‌వైజ్",
-    ta: "க்ராப்வைஸ்",
-    gu: "ક્રોપવાઇઝ",
-    ur: "کراپ وائز",
+    en: "KrushiMitra",
+    hi: "कृषिमित्र",
+    bn: "কৃষিমিত্র",
+    mr: "कृषिमित्र",
+    te: "కృషిమిత్ర",
+    ta: "கிருஷிமித்ரா",
+    gu: "કૃષિમિત્ર",
+    ur: "کرشی میترا",
     kn: "ಕ್રಾಪ್‌ವೈಸ್",
-    or: "କ୍ରପୱାଇଜ",
+    or: "କୃଷିମିତ୍ର",
   },
   smartFarmingAdvisor: {
     en: "Smart Farming Advisor",
@@ -900,16 +900,16 @@ const translations = {
     or: "ସର୍ବୋତ୍ତମ ଅଭିଜ୍ଞତା ପାଇଁ ଆପଣଙ୍କ ପସନ୍ଦର ଭାଷା ବାଛନ୍ତୁ",
   },
   "onboarding.language.welcome": {
-    en: "Welcome to CropWise",
-    hi: "CropWise में आपका स्वागत है",
-    bn: "CropWise-এ স্বাগতম",
-    mr: "CropWise मध्ये आपले स्वागत आहे",
-    te: "CropWise కు స్వాగతం",
-    ta: "CropWise க்கு வரவேற்கிறோம்",
-    gu: "CropWise માં આપનું સ્વાગત છે",
-    ur: "CropWise میں خوش آمدید",
-    kn: "CropWise ಗೆ ಸ್ವಾಗತ",
-    or: "CropWise କୁ ସ୍ୱାଗତ",
+    en: "Welcome to KrushiMitra",
+    hi: "KrushiMitra में आपका स्वागत है",
+    bn: "KrushiMitra-এ স্বাগতম",
+    mr: "KrushiMitra मध्ये आपले स्वागत आहे",
+    te: "KrushiMitra కు స్వాగతం",
+    ta: "KrushiMitra க்கு வரவேற்கிறோம்",
+    gu: "KrushiMitra માં આપનું સ્વાગત છે",
+    ur: "KrushiMitra میں خوش آمدید",
+    kn: "KrushiMitra ಗೆ ಸ್ವಾಗತ",
+    or: "KrushiMitra କୁ ସ୍ୱାଗତ",
   },
   "onboarding.language.subtitle": {
     en: "Your AI-powered farming companion",
@@ -938,16 +938,16 @@ const translations = {
 
   // Onboarding - Welcome
   "onboarding.welcome.title": {
-    en: "Welcome to CropWise",
-    hi: "CropWise में आपका स्वागत है",
-    bn: "CropWise-এ স্বাগতম",
-    mr: "CropWise मध्ये आपले स्वागत आहे",
-    te: "CropWise కు స్వాగతం",
-    ta: "CropWise க்கு வரவேற்கிறோம்",
-    gu: "CropWise માં આપનું સ્વાગત છે",
-    ur: "CropWise میں خوش آمدید",
-    kn: "CropWise ಗೆ ಸ್ವಾಗತ",
-    or: "CropWise କୁ ସ୍ୱାଗତ",
+    en: "Welcome to KrushiMitra",
+    hi: "KrushiMitra में आपका स्वागत है",
+    bn: "KrushiMitra-এ স্বাগতম",
+    mr: "KrushiMitra मध्ये आपले स्वागत आहे",
+    te: "KrushiMitra కు స్వాగతం",
+    ta: "KrushiMitra க்கு வரவேற்கிறோம்",
+    gu: "KrushiMitra માં આપનું સ્વાગત છે",
+    ur: "KrushiMitra میں خوش آمدید",
+    kn: "KrushiMitra ಗೆ ಸ್ವಾಗತ",
+    or: "KrushiMitra କୁ ସ୍ୱାଗତ",
   },
   "onboarding.welcome.description": {
     en: "Let's get to know you better",
@@ -1412,16 +1412,16 @@ const translations = {
     or: "ଆପଣଙ୍କର କୃଷି ଲକ୍ଷୟର ବର୍ଣ୍ଣନା କରନ୍ତୁ ଏବଂ କେଉଁ ବିଷୟରେ ସାହାଯ୍ୟ ଚାହାଁନ୍ତି କୁହନ୍ତୁ...",
   },
   "onboarding.goals.helpTitle": {
-    en: "CropWise can help you with:",
-    hi: "CropWise आपकी इन चीज़ों में मदद कर सकता है:",
-    bn: "CropWise আপনাকে এই বিষয়গুলিতে সাহায্য করতে পারে:",
-    mr: "CropWise तुम्हाला या गोष्टींमध्ये मदत करू शकते:",
-    te: "CropWise ఈ విషయాలలో మీకు సహాయం చేయగలదు:",
-    ta: "CropWise இந்த விஷயங்களில் உங்களுக்கு உதவ முடியும்:",
-    gu: "CropWise તમને આ બાબતોમાં મદદ કરી શકે છે:",
-    ur: "CropWise آپ کو ان چیزوں میں مدد کر سکتا ہے:",
-    kn: "CropWise ಈ ವಿಷಯಗಳಲ್ಲಿ ನಿಮಗೆ ಸಹಾಯ ಮಾಡಬಹುದು:",
-    or: "CropWise ଏହି ବିଷୟଗୁଡ଼ିକରେ ଆପଣଙ୍କୁ ସାହାଯ୍ୟ କରିପାରିବ:",
+    en: "KrushiMitra can help you with:",
+    hi: "KrushiMitra आपकी इन चीज़ों में मदद कर सकता है:",
+    bn: "KrushiMitra আপনাকে এই বিষয়গুলিতে সাহায্য করতে পারে:",
+    mr: "KrushiMitra तुम्हाला या गोष्टींमध्ये मदत करू शकते:",
+    te: "KrushiMitra ఈ విషయాలలో మీకు సహాయం చేయగలదు:",
+    ta: "KrushiMitra இந்த விஷயங்களில் உங்களுக்கு உதவ முடியும்:",
+    gu: "KrushiMitra તમને આ બાબતોમાં મદદ કરી શકે છે:",
+    ur: "KrushiMitra آپ کو ان چیزوں میں مدد کر سکتا ہے:",
+    kn: "KrushiMitra ಈ ವಿಷಯಗಳಲ್ಲಿ ನಿಮಗೆ ಸಹಾಯ ಮಾಡಬಹುದು:",
+    or: "KrushiMitra ଏହି ବିଷୟଗୁଡ଼ିକରେ ଆପଣଙ୍କୁ ସାହାଯ୍ୟ କରିପାରିବ:",
   },
   "onboarding.goals.features.disease": {
     en: "Disease identification and treatment",
@@ -1649,16 +1649,16 @@ export function useTranslation(initialLanguage?: string) {
   const [language, setLanguage] = useState<Language>("en")
 
   useEffect(() => {
-    // Determine language code from (1) explicit param, (2) cropwise-language key, (3) user data full name, fallback en
+    // Determine language code from (1) explicit param, (2) KrushiMitra-language key, (3) user data full name, fallback en
     const resolve = (): Language => {
       if (initialLanguage && LANGUAGES[initialLanguage as Language]) return initialLanguage as Language
 
-      const code = localStorage.getItem('cropwise-language') as Language | null
+      const code = localStorage.getItem('KrushiMitra-language') as Language | null
       if (code && LANGUAGES[code]) return code
 
       // Try user data storing full name
       try {
-        const raw = localStorage.getItem('cropwise-user-data')
+        const raw = localStorage.getItem('KrushiMitra-user-data')
         if (raw) {
           const parsed = JSON.parse(raw)
           const full = parsed.language
@@ -1674,16 +1674,16 @@ export function useTranslation(initialLanguage?: string) {
     }
     const detected = resolve()
     setLanguage(detected)
-    localStorage.setItem('cropwise-language', detected)
+    localStorage.setItem('KrushiMitra-language', detected)
     // Ensure user data holds full name form
     try {
-      const raw = localStorage.getItem('cropwise-user-data')
+      const raw = localStorage.getItem('KrushiMitra-user-data')
       if (raw) {
         const parsed = JSON.parse(raw)
         const full = LANGUAGES[detected]
         if (parsed.language !== full) {
           parsed.language = full
-          localStorage.setItem('cropwise-user-data', JSON.stringify(parsed))
+          localStorage.setItem('KrushiMitra-user-data', JSON.stringify(parsed))
         }
       }
     } catch {}
@@ -1691,15 +1691,15 @@ export function useTranslation(initialLanguage?: string) {
 
   const changeLanguage = (newLanguage: Language) => {
     setLanguage(newLanguage)
-    localStorage.setItem('cropwise-language', newLanguage)
+    localStorage.setItem('KrushiMitra-language', newLanguage)
     const full = LANGUAGES[newLanguage]
     try {
-      const raw = localStorage.getItem('cropwise-user-data')
+      const raw = localStorage.getItem('KrushiMitra-user-data')
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed.language !== full) {
           parsed.language = full
-          localStorage.setItem('cropwise-user-data', JSON.stringify(parsed))
+          localStorage.setItem('KrushiMitra-user-data', JSON.stringify(parsed))
         }
       }
     } catch (e) {
@@ -1742,3 +1742,4 @@ export function useTranslation(initialLanguage?: string) {
     languages: LANGUAGES,
   }
 }
+

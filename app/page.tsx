@@ -178,7 +178,7 @@ export default function Home() {
       joinDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       totalChats: 0,
       diseasesIdentified: 0,
-      achievements: ["Welcome to CropWise!"],
+      achievements: ["Welcome to KrushiMitra!"],
       mainCrops: Array.isArray(data.mainCrops)
         ? data.mainCrops as string[]
     : (typeof (data as unknown as { mainCrops?: unknown }).mainCrops === 'string'

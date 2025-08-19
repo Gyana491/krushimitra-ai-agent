@@ -5,7 +5,7 @@ import { GeistMono } from "geist/font/mono"
 import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "CropWise - Smart Farming Advisor",
+  title: "KrushiMitra - Smart Farming Advisor",
   description:
     "AI-powered farming assistant for crop disease detection, agricultural advice, and personalized farming guidance",
   generator: "v0.app",
