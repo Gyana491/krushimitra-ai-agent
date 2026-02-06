@@ -5,6 +5,7 @@ import { EnhancedChatMessages } from "@/components/enhanced-chat-messages"
 import { EnhancedChatInput } from "@/components/enhanced-chat-input"
 import { MobileHeader } from "@/components/mobile-header"
 import { WeatherSection } from "@/components/weather-section"
+import { MandiPriceTable } from "@/components/mandi-price-table"
 // Market price section will be used in future features
 // import { MarketPriceSection } from "@/components/market-price-section"
 import { OnboardingFlow } from "@/components/onboarding-flow"
@@ -410,28 +411,36 @@ export default function Home() {
   <main className="flex-1 flex flex-col pb-20 max-w-4xl mx-auto w-full">
         {currentView === "home" && (
           <>
-            <div className="flex-1 overflow-y-auto space-y-4">
-              <WeatherSection 
-                location={selectedLocation || "Unknown Location"}
-                onGetAdvice={({ date }) => {
-                  // Ensure we move to chat view and new thread similar to homepage send
-                  setCurrentView('chat')
-                  createNewThread()
-                  const friendly = new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
-                  wrappedSendMessage(`Give me weather advice for: ${friendly}`)
-                }}
-              />
-              {/* Suggested queries block on home */}
-              <div className="px-4">
-                <SuggestedQueries
-                  queries={getSuggestedQueries()}
-                  isLoading={isLoadingGlobalQueries || (isLoadingSuggestions && suggestedQueries.length === 0)}
-                  error={suggestionsError}
-                  onQuerySelect={handleSendMessage}
-                  onRefresh={() => handleRefreshSuggestions()}
-                  isAgentResponding={status === 'streaming' || status === 'submitted'}
-                  className="max-w-3xl mx-auto"
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                <WeatherSection 
+                  location={selectedLocation || "Unknown Location"}
+                  onGetAdvice={({ date }) => {
+                    // Ensure we move to chat view and new thread similar to homepage send
+                    setCurrentView('chat')
+                    createNewThread()
+                    const friendly = new Date(date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })
+                    wrappedSendMessage(`Give me weather advice for: ${friendly}`)
+                  }}
                 />
+                
+                {/* Mandi Price Table - Below Weather */}
+                <div className="px-4">
+                  <MandiPriceTable className="max-w-3xl mx-auto" />
+                </div>
+                
+                {/* Suggested queries block on home */}
+                <div className="px-4">
+                  <SuggestedQueries
+                    queries={getSuggestedQueries()}
+                    isLoading={isLoadingGlobalQueries || (isLoadingSuggestions && suggestedQueries.length === 0)}
+                    error={suggestionsError}
+                    onQuerySelect={handleSendMessage}
+                    onRefresh={() => handleRefreshSuggestions()}
+                    isAgentResponding={status === 'streaming' || status === 'submitted'}
+                    className="max-w-3xl mx-auto"
+                  />
+                </div>
               </div>
             </div>
 
